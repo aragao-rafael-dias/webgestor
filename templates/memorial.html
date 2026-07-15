@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <style>
+
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            color: #333;
+            font-size: 10pt;
+        }
+
+        .header-container {
+            background: #fff;
+            border-bottom: 4px solid #800000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header-table {
+            width: 100%;
+            border: none;
+        }
+
+        .header-table td {
+            border: none;
+            vertical-align: middle;
+        }
+
+        .title-main {
+            font-size: 16pt;
+            font-weight: bold;
+            text-align: center;
+            color: #000;
+            margin: 0;
+        }
+
+        .title-sub {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #800000;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        .title-info {
+            font-size: 10pt;
+            text-align: center;
+            color: #333;
+            margin-top: 5px;
+        }
+
+        h2 {
+            margin-top: 25px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 4px;
+            color: #000;
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 9pt;
+        }
+
+        table.data-table th,
+        table.data-table td {
+
+            border: 1px solid #999;
+            padding: 6px;
+        }
+
+        table.data-table th {
+            background: #e0e0e0;
+            font-weight: bold;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        .map-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .map-image {
+            max-width: 100%;
+            border: 2px solid #800000;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="header-container">
+
+<table class="header-table">
+
+<tr>
+
+<td width="15%" style="text-align:center;">
+
+<img src="https://lagarto.se.gov.br/sites/lagarto.se.gov.br/files/Brasao-lagarto-se.gif">
+
+</td>
+
+<td width="85%" style="padding-left:15px;">
+
+<div class="title-main">
+
+PREFEITURA MUNICIPAL DE LAGARTO
+
+</div>
+
+<div class="title-sub">
+
+MEMORIAL DESCRITIVO ANALÍTICO
+
+</div>
+
+<div class="title-info">
+
+Sistema de Referência: SIRGAS 2000 | UTM 24S
+
+</div>
+
+</td>
+
+</tr>
+
+</table>
+
+</div>
+
+<h2>1. Identificação</h2>
+
+<table class="data-table">
+
+<tr>
+
+<th width="30%">Identificação da Rota</th>
+
+<td>
+
+<strong>{{ nome_rota }}</strong>
+
+</td>
+
+</tr>
+
+<tr>
+
+<th>Região / Trecho</th>
+
+<td>{{ regiao }} - {{ trecho }}</td>
+
+</tr>
+
+<tr>
+
+<th>Total de Pontos Notáveis</th>
+
+<td>{{ total_pontos }}</td>
+
+</tr>
+
+<tr>
+
+<th>Extensão Total</th>
+
+<td>{{ "%.2f"|format(extensao_total / 1000) }} km</td>
+
+</tr>
+
+</table>
+
+<br>
+
+<h2>2. Croqui de Situação</h2>
+
+<div class="map-container">
+
+{% if mapa_base64 %}
+
+<img
+class="map-image"
+src="data:image/png;base64,{{ mapa_base64 }}">
+
+{% else %}
+
+<p>Croqui cartográfico indisponível.</p>
+
+{% endif %}
+
+</div>
+
+<h2>3. Roteiro / Pontos Notáveis</h2>
+
+<table class="data-table">
+
+<thead>
+
+<tr>
+
+<th width="6%">Ordem</th>
+
+<th width="17%">Coordenadas</th>
+
+<th width="25%">Referência</th>
+
+<th width="20%">Logradouro</th>
+
+<th width="10%">Lado</th>
+
+<th width="22%">Direção</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for p in pontos_notaveis %}
+<tr>
+
+    <td style="text-align:center;font-weight:bold;">
+        {{ p.ordem }}
+    </td>
+
+    <td style="text-align:center;">
+        {{ p.coordenadas }}
+    </td>
+
+    <td>
+        {{ p.referencia }}
+    </td>
+
+    <td>
+        {{ p.logradouro }}
+    </td>
+
+    <td style="text-align:center;">
+        {{ p.lado_via }}
+    </td>
+
+    <td>
+        {{ p.direcao_seguir }}
+    </td>
+
+</tr>
+
+{% endfor %}
+
+{% if pontos_notaveis|length == 0 %}
+
+<tr>
+
+    <td colspan="6" style="text-align:center;">
+
+        Nenhum ponto registrado para esta rota.
+
+    </td>
+
+</tr>
+
+{% endif %}
+
+</tbody>
+
+</table>
+
+</body>
+
+</html>

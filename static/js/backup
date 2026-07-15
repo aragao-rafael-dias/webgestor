@@ -1,0 +1,463 @@
+const map = L.map('map').setView([-10.915, -37.669], 13); 
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+// ==========================================
+// VARIÁVEIS GLOBAIS E DICIONÁRIOS
+// ==========================================
+window.dicionarioEscolas = {};
+window.dadosRotas = null; // Guardará os dados originais das rotas para o filtro
+let rotasLayerGroup = null; // A camada do mapa
+
+// ⚠️ COLOQUE AQUI AS CORES EXATAS QUE VOCÊ SOLICITOU
+const coresRegioes = {
+    "1": "#4CAF50", // Verde
+    "2": "#3182BD", // Azul
+    "3": "#DE2D26", // Vermelho
+    "4": "#FFEB3B", // Amarelo
+    "5": "#9B4D96", // Rosa/Magenta
+    "6": "#ED8936", // Laranja
+    "7": "#5E2D79"  // Roxo
+};
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function tocarBip(tipo) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.1, now);
+
+    if (tipo === 'nova') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now); 
+        gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if (tipo === 'resposta') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, now); 
+        osc.frequency.setValueAtTime(659.25, now + 0.1); 
+        gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+    }
+}
+
+async function apiFetch(url, method = 'GET', body = null) {
+    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) options.body = JSON.stringify(body);
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`Erro API: ${res.status}`);
+    return res.json();
+}
+
+// Extrai inteligentemente apenas o NÚMERO da região (Ex: "Região 1" vira "1")
+function obterIdRegiao(props) {
+    const regiaoBruta = props.regiao || props.REGIAO || props.Regiao || props.região || props.Região || '';
+    const match = String(regiaoBruta).match(/\d+/);
+    return match ? match[0] : String(regiaoBruta).trim();
+}
+
+async function carregarMapa() {
+    try {
+        const [escolas, rotas] = await Promise.all([
+            apiFetch('/api/escolas'),
+            apiFetch('/api/rotas')
+        ]);
+
+        // Carrega Escolas (Mantido igual)
+        L.geoJSON(escolas, {
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 8, fillColor: "#ffff00", color: "#800000", weight: 2, opacity: 1, fillOpacity: 0.8
+                });
+            },
+            onEachFeature: function (feature, layer) {
+                const props = feature.properties;
+                const nomeEscola = props.nome || props.NOME || 'Sem Nome Definido';
+                const idEscola = feature.id || props.id || props.ID || props.gid;
+
+                window.dicionarioEscolas[idEscola] = nomeEscola;
+
+                layer.bindTooltip(`<strong>${nomeEscola}</strong>`, { direction: 'top' });
+                layer.on('click', () => abrirFichaEscola(idEscola, nomeEscola, props));
+            }
+        }).addTo(map);
+
+        // Salva os dados brutos e renderiza o filtro e as rotas
+        window.dadosRotas = rotas;
+        criarFiltroRegioes(); 
+        renderizarRotas(); // Chama a função que desenha as rotas no mapa
+        carregarVisaoGeral();
+    } catch (e) {
+        console.error("Erro ao carregar o mapa:", e);
+    }
+}
+
+// ==========================================
+// FUNÇÕES DE FILTRO E RENDERIZAÇÃO
+// ==========================================
+
+function renderizarRotas() {
+    if (!window.dadosRotas) return;
+
+    // Se já existe uma camada de rotas desenhada, remove ela do mapa antes de redesenhar
+    if (rotasLayerGroup) {
+        map.removeLayer(rotasLayerGroup);
+    }
+
+    // Pega as regiões que estão marcadas no filtro
+    const checkboxesAtivos = document.querySelectorAll('.filtro-regiao:checked');
+    const regioesPermitidas = Array.from(checkboxesAtivos).map(cb => cb.value);
+
+    // Desenha as rotas nativamente usando o filtro do Leaflet
+    rotasLayerGroup = L.geoJSON(window.dadosRotas, {
+        filter: function (feature) {
+            const regiaoId = obterIdRegiao(feature.properties);
+            return regioesPermitidas.includes(regiaoId); // Só desenha se a região estiver permitida
+        },
+        style: function (feature) {
+            const regiaoId = obterIdRegiao(feature.properties);
+            const cor = coresRegioes[regiaoId] || "#800000"; // Se não achar a cor, usa vinho
+            return { color: cor, weight: 4, opacity: 0.8, lineJoin: 'round' };
+        },
+        onEachFeature: function (feature, layer) {
+            const props = feature.properties;
+            const nomeRota = props.nome_rota || props.NOME_ROTA || 'Sem Identificação';
+            const regiaoId = obterIdRegiao(props);
+            const regiaoTexto = props.regiao || props.REGIAO || regiaoId;
+            const trecho = props.trecho || props.TRECHO || 'Não Informado';
+            const totalPontos = props.total_pontos || props.TOTAL_PONTOS || 0;
+            const idRota = feature.id || props.id || props.ID || props.gid || props.GID;
+            
+            const corBase = coresRegioes[regiaoId] || "#800000";
+
+            const popupContent = `
+                <div style="font-family: Arial, sans-serif; min-width: 220px;">
+                    <h4 style="margin: 0 0 8px 0; color: #800000; border-bottom: 2px solid #800000; padding-bottom:3px;">
+                        🚌 ${nomeRota}
+                    </h4>
+                    <p style="margin: 4px 0; font-size: 13px;"><strong>📍 Região:</strong> ${regiaoTexto}</p>
+                    <p style="margin: 4px 0; font-size: 13px;"><strong>🛤️ Trecho:</strong> ${trecho}</p>
+                    <p style="margin: 4px 0; font-size: 13px;"><strong>🛑 Vértices:</strong> ${totalPontos}</p>
+                    <button onclick="gerarMemorial(${idRota})" style="width: 100%; margin-top: 12px; background: #800000; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                        📄 Gerar Memorial (PDF)
+                    </button>
+                </div>
+            `;
+
+            layer.bindPopup(popupContent);
+            layer.on({
+                mouseover: (e) => e.target.setStyle({ weight: 7, color: "#ffff00", opacity: 1 }),
+                mouseout: (e) => e.target.setStyle({ weight: 4, color: corBase, opacity: 0.8 })
+            });
+        }
+    }).addTo(map);
+}
+
+function criarFiltroRegioes() {
+    if (document.getElementById('filtro-regioes-container')) return; 
+
+    const container = document.createElement('div');
+    container.id = 'filtro-regioes-container';
+    container.style.padding = '10px';
+    container.style.marginBottom = '15px';
+    container.style.background = '#f9f9f9';
+    container.style.border = '1px solid #ddd';
+    container.style.borderRadius = '5px';
+
+    const titulo = document.createElement('h4');
+    titulo.innerText = '🗺️ Filtrar por Região';
+    titulo.style.margin = '0 0 10px 0';
+    titulo.style.color = '#800000';
+    titulo.style.borderBottom = '2px solid #800000';
+    titulo.style.paddingBottom = '3px';
+    container.appendChild(titulo);
+
+    Object.keys(coresRegioes).forEach(regiaoId => {
+        const cor = coresRegioes[regiaoId];
+        const label = document.createElement('label');
+        label.style.display = 'block';
+        label.style.marginBottom = '5px';
+        label.style.cursor = 'pointer';
+        label.style.fontSize = '14px';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'filtro-regiao';
+        checkbox.value = regiaoId;
+        checkbox.checked = true;
+        // Quando qualquer checkbox for clicado, ele chama a função para redesenhar o mapa
+        checkbox.addEventListener('change', renderizarRotas); 
+
+        const iconeCor = document.createElement('span');
+        iconeCor.innerHTML = ' &#9632; '; 
+        iconeCor.style.color = cor;
+        if (regiaoId === "4") iconeCor.style.textShadow = '1px 1px 1px #888'; 
+
+        label.appendChild(checkbox);
+        label.appendChild(iconeCor);
+        label.appendChild(document.createTextNode(` Região ${regiaoId}`));
+        container.appendChild(label);
+    });
+
+    const painelInfo = document.getElementById('info-escola');
+    if (painelInfo && painelInfo.parentNode) {
+        painelInfo.parentNode.insertBefore(container, painelInfo);
+    }
+}
+
+// ==========================================
+// FUNÇÕES DE UI E REQUISIÇÕES (MANTIDAS)
+// ==========================================
+
+function abrirFichaEscola(idEscola, nomeEscola, props) {
+    const painel = document.getElementById('info-escola');
+    const diretorEscola = props.diretor || props.DIRETOR || 'Sem Nome Definido';
+    const telefoneEscola = props.telefone || props.TELEFONE || 'Sem Número Definido';
+
+    painel.innerHTML = `
+    <button onclick="carregarVisaoGeral()" style="width:100%; margin-bottom:10px; background:#424242; color:white; border:none; padding:8px; border-radius:3px; cursor:pointer; font-weight:bold;">
+        ✖ Fechar Ficha da Escola
+    </button>
+    <h3 style="color: #800000;">${nomeEscola}</h3>
+    <p><strong>Diretor:</strong> ${diretorEscola}</p>
+    <p><strong>Telefone:</strong> ${telefoneEscola}</p>
+    
+    <hr>
+    <h4>Requisições</h4>
+    <textarea id="texto-nova-req-${idEscola}" rows="3" style="width: 100%;border-radius:5px;padding:5px;" placeholder="Registre a sua requisição à SEMED aqui!"></textarea>
+    <button class="btn-requisicao" onclick="novaRequisicao(${idEscola}, '${nomeEscola}')" style="width: 100%; margin-top: 5px; background: #4caf50; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 4px; font-weight: bold;">
+        + Nova Requisição
+    </button>
+    <hr>
+    <h4>Histórico de Requisições</h4>
+    <p id="status-requisicoes">Carregando requisições...</p>
+    `;
+    carregarRequisicoes(idEscola);
+}
+
+async function carregarRequisicoes(escolaId) {
+    const statusEl = document.getElementById('status-requisicoes');
+    statusEl.innerHTML = "<em>Buscando requisições...</em>";
+
+    try {
+        const data = await apiFetch(`/api/escolas/${escolaId}/requisicoes`);
+        
+        if (data.length === 0) {
+            statusEl.innerHTML = "<p>Nenhuma requisição encontrada nesta unidade de ensino.</p>";
+            return;
+        }
+
+        const pendentes = data.filter(req => req.status === 'Pendente');
+        const respondidas = data.filter(req => req.status === 'Respondida');
+
+        let html = `
+        <details open style="margin-bottom: 10px;">
+            <summary style="cursor: pointer; font-weight: bold; background: #ffff00; color: #800000; padding: 8px; border-radius: 5px;">
+                🚨 PENDENTES (${pendentes.length})
+            </summary>
+            <div style="padding: 10px; border: 1px solid #ccc; border-top: none; background: #fff;">
+        `;
+
+        if (pendentes.length === 0) html += "<p>Nenhuma requisição pendente</p>";
+
+        pendentes.forEach(req => {
+            html += `
+                <div style="margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom:10px;">
+                    <strong style="color: #d32f2f;"> Req #${req.id}</strong><br>
+                    <p style="margin: 5px 0;"><em>"${req.descricao}"</em></p>
+                    <textarea id="resposta-req-${req.id}" rows="2" style="width: 100%; margin-top:5px" placeholder="Digite a resposta da SEMED..."></textarea>
+                    <button style="margin-top: 5px; cursor: pointer; background: #4caf50; color:white; border:none; padding: 5px 10px; border-radius:3px;"
+                            onclick="responderRequisicao(${req.id}, ${escolaId})">
+                        Responder e Concluir
+                    </button>
+                </div>
+            `;
+        });
+        html += `</div></details>`;
+
+        html += `
+        <details style="margin-bottom:10px;">
+            <summary style="cursor:pointer; font-weight: bold; background:#c8e6c9; padding:8px; border-radius:5px;">
+                ✅ RESPONDIDAS (${respondidas.length})
+            </summary>
+            <div style="padding:10px; border: 1px solid #ccc; border-top: none; background: #fff;">
+        `;
+        
+        if (respondidas.length === 0) html += "<p>Nenhuma requisição finalizada.</p>";
+
+        respondidas.forEach(req => {
+            html += `
+                <div style="margin-bottom:10px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
+                    <strong style="color: #388e3c;">Req #${req.id}</strong><br>
+                    <p style="margin: 5px 0;"><strong>Pedido:</strong> <em>"${req.descricao}"</em></p>
+                    <p style="margin: 5px 0; color: #800000;"><strong>Resposta SEMED:</strong> ${req.resposta_semed}</p>
+                </div>
+            `;
+        });
+        html += `</div></details>`;
+
+        statusEl.innerHTML = html;
+    } catch (error) {
+        statusEl.innerHTML = "<p style='color: red;'>Erro ao carregar histórico.</p>";
+    }
+}
+
+async function novaRequisicao(escolaId, nomeEscola) {
+    const textarea = document.getElementById(`texto-nova-req-${escolaId}`);
+    const descricao = textarea.value.trim();
+    if (!descricao) return;
+
+    try {
+        await apiFetch('/api/requisicoes', 'POST', { escola_id: escolaId, descricao: descricao });
+        tocarBip('nova');
+        textarea.value = '';
+        carregarRequisicoes(escolaId);
+    } catch (error) {
+        alert("Ocorreu um erro ao salvar a requisição!");
+    }
+}
+
+async function responderRequisicao(reqId, escolaId) {
+    const textarea = document.getElementById(`resposta-req-${reqId}`);
+    const resposta = textarea.value.trim();
+    if (!resposta) return alert("A resposta não pode ficar vazia.");
+
+    try {
+        await apiFetch(`/api/requisicoes/${reqId}/responder`, 'POST', { resposta: resposta });
+        tocarBip('resposta');
+        carregarRequisicoes(escolaId); 
+    } catch (error) {
+        alert("Ocorreu um erro ao enviar a resposta.");
+    }
+}
+
+async function responderRequisicaoGeral(reqId) {
+    const textarea = document.getElementById(`resposta-geral-req-${reqId}`);
+    const resposta = textarea.value.trim();
+    if (!resposta) return alert("A resposta não pode ficar vazia.");
+
+    try {
+        await apiFetch(`/api/requisicoes/${reqId}/responder`, 'POST', { resposta: resposta });
+        tocarBip('resposta');
+        carregarVisaoGeral();
+    } catch (error) {
+        alert("Ocorreu um erro ao enviar a resposta.");
+    }
+}
+
+function gerarMemorial(rotaId) {
+    tocarBip('resposta');
+    window.open(`/api/rotas/${rotaId}/memorial`, '_blank');
+}
+
+async function carregarVisaoGeral() {
+    const painel = document.getElementById('info-escola');
+    painel.innerHTML = `<h3 style="text-align:center; color: #800000;">📊 Visão Geral da Rede</h3><p style="text-align:center;"><em>Carregando panorama...</em></p>`;
+
+    try {
+        const data = await apiFetch('/api/requisicoes/todas');
+        
+        const pendentes = data.filter(r => r.status === 'Pendente');
+        const respondidas = data.filter(r => r.status === 'Respondida');
+        const total = data.length;
+        const pctPendentes = total === 0 ? 0 : (pendentes.length / total) * 100;
+        
+        let html = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 5px;">Status Geral (${total} Requisições)</h3>
+                <div style="
+                    background: conic-gradient(#ffff00 0% ${pctPendentes}%, #4caf50 ${pctPendentes}% 100%);
+                    width: 130px; height: 130px; border-radius: 50%; 
+                    margin: 15px auto; border: 3px solid #eee;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                </div>
+                <div style="display: flex; justify-content: space-around; font-weight: bold; margin-top:10px;">
+                    <span style="color: #800000;">🚨 ${pendentes.length} Pendentes</span>
+                    <span style="color: #388e3c;">✅ ${respondidas.length} Respondidas</span>
+                </div>
+            </div>
+            <hr>
+            <div style="max-height: 400px; overflow-y: auto; padding-right:5px;">
+        `;
+        
+        if (pendentes.length > 0) {
+            html += `<h4 style="color:#800000;">Últimas Pendentes</h4>`;
+            pendentes.forEach(req => {
+                const nomeEscola = window.dicionarioEscolas[req.escola_id] || `Escola #${req.escola_id}`;
+                html += `
+                    <details style="margin-bottom: 8px;">
+                        <summary style="background: #fff9c4; border-left: 4px solid #ffff00; padding: 8px; border-radius: 4px; font-size: 0.9em; cursor: pointer; list-style: none;">
+                            <strong>${nomeEscola}</strong> (Req #${req.id})<br>
+                            <em>"${req.descricao}"</em>
+                        </summary>
+                        <div style="padding: 10px; background: #fafafa; border: 1px solid #eee; border-top: none; margin-top: -2px;">
+                            <textarea id="resposta-geral-req-${req.id}" rows="2" style="width: 100%; padding: 5px; box-sizing: border-box;" placeholder="Digite a resposta da SEMED..."></textarea>
+                            <button style="margin-top: 5px; cursor: pointer; background: #4caf50; color:white; border:none; padding: 5px 10px; border-radius:3px;"
+                                    onclick="responderRequisicaoGeral(${req.id})">
+                                Responder e Concluir
+                            </button>
+                        </div>
+                    </details>`;
+            });
+        }
+
+        if (respondidas.length > 0) {
+            html += `<h4 style="color:#388e3c; margin-top:15px;">Últimas Respondidas</h4>`;
+            respondidas.forEach(req => {
+                const nomeEscola = window.dicionarioEscolas[req.escola_id] || `Escola #${req.escola_id}`;
+                html += `
+                    <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 8px; margin-bottom: 8px; border-radius: 4px; font-size: 0.9em;">
+                        <strong>${nomeEscola}</strong> (Req #${req.id})<br>
+                        <span style="color:#800000">Resp: ${req.resposta_semed}</span>
+                    </div>`;
+            });
+        }
+
+        html += `</div>`;
+        painel.innerHTML = html;
+    } catch (error) {
+        painel.innerHTML = "<p style='color: red; text-align:center;'>Erro ao carregar Dashboard.</p>";
+    }
+}
+
+document.addEventListener('DOMContentLoaded', carregarMapa);
+
+// ==========================================
+// FUNÇÃO DE INTEGRAÇÃO COM O SETE
+// ==========================================
+
+async function sincronizarComSete() {
+    const btn = document.getElementById('btn-sync-sete');
+    const textoOriginal = btn.innerHTML;
+    
+    btn.innerHTML = '⏳ Sincronizando com Gov. Federal...';
+    btn.disabled = true;
+    btn.style.background = '#9e9e9e';
+
+    try {
+        const data = await apiFetch('/api/integracao/sincronizar', 'POST');
+        if(data.sucesso) {
+            tocarBip('resposta');
+            alert(data.mensagem);
+            console.log("DADOS IMPORTADOS DO SETE:", data.dados);
+        } else {
+            alert("Falha na sincronização: " + data.erro);
+        }
+    } catch (error) {
+        console.error("Erro crítico:", error);
+        alert("Erro ao tentar conectar com a API.");
+    } finally {
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
+        btn.style.background = '#2196f3';
+    }
+}
