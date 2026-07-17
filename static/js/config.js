@@ -1,14 +1,31 @@
 // ==========================================
-// CONFIG.JS
+// CONFIG
 // ==========================================
 
 export const CONFIG = Object.freeze({
     centro: [-10.915, -37.669],
     zoom: 13,
     maxZoom: 19,
-    tileLayer: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: "© OpenStreetMap contributors"
+
+    tileLayer:
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+
+    attribution:
+        "© OpenStreetMap contributors",
+
+    paineis: Object.freeze({
+        rotas: Object.freeze({
+            nome: "rotasPane",
+            zIndex: 410
+        }),
+
+        escolas: Object.freeze({
+            nome: "escolasPane",
+            zIndex: 620
+        })
+    })
 });
+
 
 export const coresRegioes = Object.freeze({
     "1": "#4CAF50",

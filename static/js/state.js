@@ -1,13 +1,21 @@
 // ==========================================
-// STATE.JS
+// STATE
 // ==========================================
 
 export const AppState = {
     map: null,
-    escolas: {},
-    rotas: null,
+
     layers: {
         escolas: null,
         rotas: null
-    }
+    },
+
+    escolas: {},
+    rotas: null,
+
+    marcadoresEscolas: {},
+
+    escolasComAlerta: new Set(),
+
+    escolasDiretor: new Set()
 };

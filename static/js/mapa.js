@@ -1,73 +1,168 @@
 // ==========================================
-// MAPA.JS
 // Ponto de entrada da aplicação no navegador
 // ==========================================
 
-import { CONFIG, coresRegioes } from "./config.js";
+import {
+    CONFIG,
+    coresRegioes
+} from "./config.js";
+
 import { AppState } from "./state.js";
-import { apiGet, apiPost } from "./api.js";
+
+import {
+    apiGet,
+    apiPost
+} from "./api.js";
+
 import { tocarBip } from "./audio.js";
+
 import {
     obterId,
     obterIdRegiao,
     abrirNovaAba
 } from "./utils.js";
+
 import {
     nomeRota,
     regiao,
     trecho,
     totalPontos
 } from "./props.js";
-import { carregarEscolas } from "./escolas.js";
-import { carregarVisaoGeral } from "./dashboard.js";
-import { popupRota } from "./templates/popup.js";
-import { erro } from "./templates/ui.js";
+
+import {
+    carregarEscolas,
+    atualizarAlertasEscolas
+} from "./escolas.js";
+
+import {
+    inicializarCadastroRapido
+} from "./requisicoes.js";
+
+import {
+    carregarVisaoGeral
+} from "./dashboard.js";
+
+import {
+    inicializarPainelContextual
+} from "./painel_contextual.js";
+
+import {
+    popupRota
+} from "./templates/popup.js";
+
+import {
+    erro
+} from "./templates/ui.js";
+
+
+// ==========================================
+// CONFIGURAÇÃO DOS PAINÉIS DO LEAFLET
+// ==========================================
+
+function configurarPaineisMapa(map) {
+    const paineis =
+        Object.values(CONFIG.paineis);
+
+    paineis.forEach(
+        ({ nome, zIndex }) => {
+            if (!map.getPane(nome)) {
+                map.createPane(nome);
+            }
+
+            const painel =
+                map.getPane(nome);
+
+            painel.style.zIndex =
+                String(zIndex);
+        }
+    );
+}
+
+
+// ==========================================
+// INICIALIZAÇÃO DO MAPA
+// ==========================================
 
 export function inicializarMapaLeaflet() {
     if (AppState.map) {
         return AppState.map;
     }
 
-    const elementoMapa = document.getElementById("map");
+    const elementoMapa =
+        document.getElementById("map");
 
     if (!elementoMapa) {
-        throw new Error("Elemento #map não encontrado.");
+        throw new Error(
+            "Elemento #map não encontrado."
+        );
     }
 
     if (typeof L === "undefined") {
-        throw new Error("Leaflet não foi carregado.");
+        throw new Error(
+            "Leaflet não foi carregado."
+        );
     }
 
-    AppState.map = L.map("map").setView(
-        CONFIG.centro,
-        CONFIG.zoom
+    AppState.map = L
+        .map("map")
+        .setView(
+            CONFIG.centro,
+            CONFIG.zoom
+        );
+
+    configurarPaineisMapa(
+        AppState.map
     );
 
-    L.tileLayer(CONFIG.tileLayer, {
-        maxZoom: CONFIG.maxZoom,
-        attribution: CONFIG.attribution
-    }).addTo(AppState.map);
+    L.tileLayer(
+        CONFIG.tileLayer,
+        {
+            maxZoom: CONFIG.maxZoom,
+            attribution: CONFIG.attribution
+        }
+    ).addTo(AppState.map);
 
     return AppState.map;
 }
 
+
+// ==========================================
+// CARREGAMENTO DOS DADOS DO MAPA
+// ==========================================
+
 export async function carregarMapa() {
     try {
-        const [escolas, rotas] = await Promise.all([
-            apiGet("/api/escolas"),
-            apiGet("/api/rotas")
-        ]);
+        const [escolas, rotas] =
+            await Promise.all([
+                apiGet("/api/escolas"),
+                apiGet("/api/rotas")
+            ]);
 
-        carregarEscolas(AppState.map, escolas);
         AppState.rotas = rotas;
 
         criarFiltroRegioes();
-        renderizarRotas();
-        await carregarVisaoGeral();
-    } catch (errorCarregamento) {
-        console.error("Erro ao carregar o mapa:", errorCarregamento);
 
-        const painel = document.getElementById("info-escola");
+        renderizarRotas();
+
+        await carregarEscolas(
+            AppState.map,
+            escolas
+        );
+
+        await atualizarAlertasEscolas();
+
+        await carregarVisaoGeral();
+
+    } catch (errorCarregamento) {
+        console.error(
+            "Erro ao carregar o mapa:",
+            errorCarregamento
+        );
+
+        const painel =
+            document.getElementById(
+                "info-escola"
+            );
 
         if (painel) {
             painel.innerHTML = erro(
@@ -77,236 +172,460 @@ export async function carregarMapa() {
     }
 }
 
+
+// ==========================================
+// RENDERIZAÇÃO DAS ROTAS
+// ==========================================
+
 export function renderizarRotas() {
-    if (!AppState.map || !AppState.rotas) {
+    if (
+        !AppState.map
+        || !AppState.rotas
+    ) {
         return;
     }
 
     if (AppState.layers.rotas) {
-        AppState.map.removeLayer(AppState.layers.rotas);
+        AppState.map.removeLayer(
+            AppState.layers.rotas
+        );
     }
 
     const checkboxes = [
-        ...document.querySelectorAll(".filtro-regiao:checked")
+        ...document.querySelectorAll(
+            ".filtro-regiao:checked"
+        )
     ];
-    const regioesPermitidas = checkboxes.map(
-        (checkbox) => checkbox.value
-    );
 
-    AppState.layers.rotas = L.geoJSON(AppState.rotas, {
-        filter(feature) {
-            const idRegiao = obterIdRegiao(
-                feature.properties ?? {}
-            );
+    const regioesPermitidas =
+        checkboxes.map(
+            checkbox => checkbox.value
+        );
 
-            return regioesPermitidas.length === 0
-                ? false
-                : regioesPermitidas.includes(idRegiao);
-        },
+    AppState.layers.rotas = L.geoJSON(
+        AppState.rotas,
+        {
+            pane: CONFIG.paineis.rotas.nome,
 
-        style(feature) {
-            const idRegiao = obterIdRegiao(
-                feature.properties ?? {}
-            );
+            filter(feature) {
+                const idRegiao =
+                    obterIdRegiao(
+                        feature.properties ?? {}
+                    );
 
-            return {
-                color: coresRegioes[idRegiao] ?? "#800000",
-                weight: 4,
-                opacity: 0.8,
-                lineJoin: "round"
-            };
-        },
+                if (
+                    regioesPermitidas.length === 0
+                ) {
+                    return false;
+                }
 
-        onEachFeature(feature, layer) {
-            configurarRota(feature, layer);
+                return regioesPermitidas.includes(
+                    idRegiao
+                );
+            },
+
+            style(feature) {
+                const idRegiao =
+                    obterIdRegiao(
+                        feature.properties ?? {}
+                    );
+
+                return {
+                    pane:
+                        CONFIG
+                            .paineis
+                            .rotas
+                            .nome,
+
+                    color:
+                        coresRegioes[idRegiao]
+                        ?? "#800000",
+
+                    weight: 4,
+                    opacity: 0.8,
+                    lineJoin: "round"
+                };
+            },
+
+            onEachFeature(feature, layer) {
+                configurarRota(
+                    feature,
+                    layer
+                );
+            }
         }
-    }).addTo(AppState.map);
+    ).addTo(AppState.map);
 }
 
-function configurarRota(feature, layer) {
-    const props = feature.properties ?? {};
-    const idRota = obterId(feature);
-    const idRegiao = obterIdRegiao(props);
-    const corBase = coresRegioes[idRegiao] ?? "#800000";
+
+// ==========================================
+// CONFIGURAÇÃO DE CADA ROTA
+// ==========================================
+
+function configurarRota(
+    feature,
+    layer
+) {
+    const props =
+        feature.properties ?? {};
+
+    const idRota =
+        obterId(feature);
+
+    const idRegiao =
+        obterIdRegiao(props);
+
+    const corBase =
+        coresRegioes[idRegiao]
+        ?? "#800000";
 
     layer.bindPopup(
         popupRota({
             id: idRota,
-            nome: nomeRota(props),
-            regiao: regiao(props) || idRegiao || "Não informada",
-            trecho: trecho(props),
-            totalPontos: totalPontos(props)
+
+            nome:
+                nomeRota(props),
+
+            regiao:
+                regiao(props)
+                || idRegiao
+                || "Não informada",
+
+            trecho:
+                trecho(props),
+
+            totalPontos:
+                totalPontos(props)
         })
     );
 
-    layer.on("popupopen", (evento) => {
-        const botao = evento.popup
-            .getElement()
-            ?.querySelector(".btn-memorial");
+    layer.on(
+        "popupopen",
+        evento => {
+            const botao = evento.popup
+                .getElement()
+                ?.querySelector(
+                    ".btn-memorial"
+                );
 
-        if (!botao) {
-            return;
+            if (!botao) {
+                return;
+            }
+
+            if (idRota === "") {
+                botao.disabled = true;
+
+                botao.title =
+                    "Rota sem identificador válido";
+
+                return;
+            }
+
+            botao.addEventListener(
+                "click",
+                () => gerarMemorial(
+                    idRota
+                ),
+                {
+                    once: true
+                }
+            );
         }
+    );
 
-        if (idRota === "") {
-            botao.disabled = true;
-            botao.title = "Rota sem identificador válido";
-            return;
+    layer.on(
+        "mouseover",
+        evento => {
+            evento.target.setStyle({
+                weight: 7,
+                color: "#ffff00",
+                opacity: 1
+            });
         }
+    );
 
-        botao.addEventListener(
-            "click",
-            () => gerarMemorial(idRota),
-            { once: true }
-        );
-    });
-
-    layer.on("mouseover", (evento) => {
-        evento.target.setStyle({
-            weight: 7,
-            color: "#ffff00",
-            opacity: 1
-        });
-    });
-
-    layer.on("mouseout", (evento) => {
-        evento.target.setStyle({
-            weight: 4,
-            color: corBase,
-            opacity: 0.8
-        });
-    });
+    layer.on(
+        "mouseout",
+        evento => {
+            evento.target.setStyle({
+                weight: 4,
+                color: corBase,
+                opacity: 0.8
+            });
+        }
+    );
 }
 
+
+// ==========================================
+// FILTRO DE REGIÕES
+// ==========================================
+
 export function criarFiltroRegioes() {
-    if (document.getElementById("filtro-regioes-container")) {
+    if (
+        document.getElementById(
+            "filtro-regioes-container"
+        )
+    ) {
         return;
     }
 
-    const painelInfo = document.getElementById("info-escola");
+    const painelInfo =
+        document.getElementById(
+            "info-escola"
+        );
 
     if (!painelInfo?.parentNode) {
         return;
     }
 
-    const container = document.createElement("div");
-    container.id = "filtro-regioes-container";
-    Object.assign(container.style, {
-        padding: "10px",
-        marginBottom: "15px",
-        background: "#f9f9f9",
-        border: "1px solid #ddd",
-        borderRadius: "5px"
-    });
+    const container =
+        document.createElement("div");
 
-    const tituloFiltro = document.createElement("h4");
-    tituloFiltro.textContent = "🗺️ Filtrar por Região";
-    Object.assign(tituloFiltro.style, {
-        margin: "0 0 10px 0",
-        color: "#800000",
-        borderBottom: "2px solid #800000",
-        paddingBottom: "3px"
-    });
-    container.appendChild(tituloFiltro);
+    container.id =
+        "filtro-regioes-container";
 
-    Object.entries(coresRegioes).forEach(([idRegiao, cor]) => {
-        const label = document.createElement("label");
-        Object.assign(label.style, {
-            display: "block",
-            marginBottom: "5px",
-            cursor: "pointer",
-            fontSize: "14px"
-        });
-
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.className = "filtro-regiao";
-        checkbox.value = idRegiao;
-        checkbox.checked = true;
-        checkbox.addEventListener("change", renderizarRotas);
-
-        const iconeCor = document.createElement("span");
-        iconeCor.textContent = " ■ ";
-        iconeCor.style.color = cor;
-
-        if (idRegiao === "4") {
-            iconeCor.style.textShadow = "1px 1px 1px #888";
+    Object.assign(
+        container.style,
+        {
+            padding: "10px",
+            marginBottom: "15px",
+            background: "#f9f9f9",
+            border: "1px solid #ddd",
+            borderRadius: "5px"
         }
+    );
 
-        label.append(
-            checkbox,
-            iconeCor,
-            document.createTextNode(` Região ${idRegiao}`)
+    const tituloFiltro =
+        document.createElement("h4");
+
+    tituloFiltro.textContent =
+        "🗺️ Filtrar por Região";
+
+    Object.assign(
+        tituloFiltro.style,
+        {
+            margin: "0 0 10px 0",
+            color: "#800000",
+            borderBottom:
+                "2px solid #800000",
+            paddingBottom: "3px"
+        }
+    );
+
+    container.appendChild(
+        tituloFiltro
+    );
+
+    Object
+        .entries(coresRegioes)
+        .forEach(
+            ([idRegiao, cor]) => {
+                const label =
+                    document.createElement(
+                        "label"
+                    );
+
+                Object.assign(
+                    label.style,
+                    {
+                        display: "block",
+                        marginBottom: "5px",
+                        cursor: "pointer",
+                        fontSize: "14px"
+                    }
+                );
+
+                const checkbox =
+                    document.createElement(
+                        "input"
+                    );
+
+                checkbox.type =
+                    "checkbox";
+
+                checkbox.className =
+                    "filtro-regiao";
+
+                checkbox.value =
+                    idRegiao;
+
+                checkbox.checked =
+                    true;
+
+                checkbox.addEventListener(
+                    "change",
+                    renderizarRotas
+                );
+
+                const iconeCor =
+                    document.createElement(
+                        "span"
+                    );
+
+                iconeCor.textContent =
+                    " ■ ";
+
+                iconeCor.style.color =
+                    cor;
+
+                if (idRegiao === "4") {
+                    iconeCor.style.textShadow =
+                        "1px 1px 1px #888";
+                }
+
+                label.append(
+                    checkbox,
+                    iconeCor,
+                    document.createTextNode(
+                        ` Região ${idRegiao}`
+                    )
+                );
+
+                container.appendChild(
+                    label
+                );
+            }
         );
-        container.appendChild(label);
-    });
 
-    painelInfo.parentNode.insertBefore(container, painelInfo);
-}
-
-export async function gerarMemorial(rotaId) {
-    if (rotaId === undefined || rotaId === null || rotaId === "") {
-        alert("A rota não possui um identificador válido.");
-        return;
-    }
-
-    await tocarBip("resposta");
-    abrirNovaAba(
-        `/api/rotas/${encodeURIComponent(rotaId)}/memorial`
+    painelInfo.parentNode.insertBefore(
+        container,
+        painelInfo
     );
 }
 
+
+// ==========================================
+// GERAÇÃO DO MEMORIAL DA ROTA
+// ==========================================
+
+export async function gerarMemorial(
+    rotaId
+) {
+    if (
+        rotaId === undefined
+        || rotaId === null
+        || rotaId === ""
+    ) {
+        alert(
+            "A rota não possui um identificador válido."
+        );
+
+        return;
+    }
+
+    await tocarBip(
+        "resposta"
+    );
+
+    abrirNovaAba(
+        `/api/rotas/${
+            encodeURIComponent(rotaId)
+        }/memorial`
+    );
+}
+
+
+// ==========================================
+// SINCRONIZAÇÃO COM O SETE
+// ==========================================
+
 export async function sincronizarComSete() {
-    const botao = document.getElementById("btn-sync-sete");
+    const botao =
+        document.getElementById(
+            "btn-sync-sete"
+        );
 
     if (!botao) {
         return;
     }
 
-    const textoOriginal = botao.innerHTML;
-    const corOriginal = botao.style.background;
+    const textoOriginal =
+        botao.innerHTML;
 
-    botao.innerHTML = "⏳ Sincronizando com Gov. Federal...";
+    const corOriginal =
+        botao.style.background;
+
+    botao.innerHTML =
+        "⏳ Sincronizando com Gov. Federal...";
+
     botao.disabled = true;
-    botao.style.background = "#9e9e9e";
+
+    botao.style.background =
+        "#9e9e9e";
 
     try {
-        const resultado = await apiPost(
-            "/api/integracao/sincronizar"
-        );
+        const resultado =
+            await apiPost(
+                "/api/integracao/sincronizar"
+            );
 
         if (resultado?.sucesso) {
-            await tocarBip("resposta");
-            alert(resultado.mensagem);
+            await tocarBip(
+                "resposta"
+            );
+
+            alert(
+                resultado.mensagem
+            );
+
             console.log(
                 "DADOS IMPORTADOS DO SETE:",
                 resultado.dados
             );
+
         } else {
             alert(
                 `Falha na sincronização: ${
-                    resultado?.erro ?? "erro desconhecido"
+                    resultado?.erro
+                    ?? "erro desconhecido"
                 }`
             );
         }
+
     } catch (errorSincronizacao) {
-        console.error("Erro crítico:", errorSincronizacao);
-        alert("Erro ao tentar conectar com a API.");
+        console.error(
+            "Erro crítico:",
+            errorSincronizacao
+        );
+
+        alert(
+            "Erro ao tentar conectar com a API."
+        );
+
     } finally {
-        botao.innerHTML = textoOriginal;
-        botao.disabled = false;
-        botao.style.background = corOriginal;
+        botao.innerHTML =
+            textoOriginal;
+
+        botao.disabled =
+            false;
+
+        botao.style.background =
+            corOriginal;
     }
 }
+
+
+// ==========================================
+// INICIALIZAÇÃO DA APLICAÇÃO
+// ==========================================
 
 async function iniciarAplicacao() {
     try {
         inicializarMapaLeaflet();
 
-        const botaoSete = document.getElementById("btn-sync-sete");
+        await inicializarPainelContextual();
+
+        const botaoSete =
+            document.getElementById(
+                "btn-sync-sete"
+            );
 
         if (botaoSete) {
-            botaoSete.removeAttribute("onclick");
+            botaoSete.removeAttribute(
+                "onclick"
+            );
+
             botaoSete.addEventListener(
                 "click",
                 sincronizarComSete
@@ -314,12 +633,30 @@ async function iniciarAplicacao() {
         }
 
         await carregarMapa();
+
+        await inicializarCadastroRapido();
+
     } catch (errorInicializacao) {
         console.error(
             "Erro ao inicializar a aplicação:",
             errorInicializacao
         );
+
+        const painel =
+            document.getElementById(
+                "info-escola"
+            );
+
+        if (painel) {
+            painel.innerHTML = erro(
+                "Não foi possível inicializar a aplicação."
+            );
+        }
     }
 }
 
-document.addEventListener("DOMContentLoaded", iniciarAplicacao);
+
+document.addEventListener(
+    "DOMContentLoaded",
+    iniciarAplicacao
+);

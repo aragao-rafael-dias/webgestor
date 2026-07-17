@@ -1,112 +1,236 @@
 // ==========================================
-// TEMPLATES DO HISTÓRICO DA ESCOLA
+// TEMPLATE DO HISTÓRICO DE REQUISIÇÕES
 // ==========================================
 
-import { escapeHtml } from "../utils.js";
+import {
+    escapeHtml
+} from "../utils.js";
 
-export function historicoRequisicoes(pendentes, respondidas) {
-    let html = `
-        <details open>
-            <summary style="cursor:pointer;font-weight:bold;background:#ffff00;color:#800000;padding:8px;border-radius:5px;">
-                🚨 PENDENTES (${pendentes.length})
-            </summary>
 
-            <div style="padding:10px;background:#fff;border:1px solid #ccc;border-top:none;">
-    `;
-
-    if (pendentes.length === 0) {
-        html += "<p>Nenhuma requisição pendente.</p>";
+function templatePendentes(
+    pendentes,
+    podeResponder
+) {
+    if (
+        !Array.isArray(pendentes)
+        || pendentes.length === 0
+    ) {
+        return `
+            <p class="historico-vazio">
+                Nenhuma requisição pendente.
+            </p>
+        `;
     }
 
-    pendentes.forEach((req) => {
-        html += cardHistoricoPendente(req);
-    });
+    return pendentes
+        .map(
+            requisicao => {
+                const idSeguro =
+                    escapeHtml(
+                        String(requisicao.id)
+                    );
 
-    html += `
-            </div>
-        </details>
+                const descricaoSegura =
+                    escapeHtml(
+                        String(
+                            requisicao.descricao
+                            ?? ""
+                        )
+                    );
 
-        <details style="margin-top:10px;">
-            <summary style="cursor:pointer;font-weight:bold;background:#c8e6c9;padding:8px;border-radius:5px;">
-                ✅ RESPONDIDAS (${respondidas.length})
-            </summary>
+                const controlesResposta =
+                    podeResponder
+                        ? `
+                            <div
+                                class="controles-resposta"
+                            >
+                                <label
+                                    for="resposta-req-${idSeguro}"
+                                >
+                                    Resposta do setor
+                                </label>
 
-            <div style="padding:10px;background:#fff;border:1px solid #ccc;border-top:none;">
-    `;
+                                <textarea
+                                    id="resposta-req-${idSeguro}"
+                                    class="txt-resposta"
+                                    data-id="${idSeguro}"
+                                    rows="3"
+                                    maxlength="5000"
+                                    placeholder="Digite a resposta do setor"
+                                ></textarea>
 
-    if (respondidas.length === 0) {
-        html += "<p>Nenhuma requisição respondida.</p>";
-    }
+                                <button
+                                    type="button"
+                                    class="btn-responder"
+                                    data-id="${idSeguro}"
+                                >
+                                    Responder e concluir
+                                </button>
+                            </div>
+                        `
+                        : `
+                            <div
+                                class="aviso-aguardando-setor"
+                            >
+                                Aguardando análise e resposta
+                                do setor responsável.
+                            </div>
+                        `;
 
-    respondidas.forEach((req) => {
-        html += cardHistoricoRespondida(req);
-    });
+                return `
+                    <article
+                        class="item-requisicao pendente"
+                    >
+                        <strong>
+                            Requisição #${idSeguro}
+                        </strong>
 
-    html += `
-            </div>
-        </details>
-    `;
+                        <p>
+                            ${descricaoSegura}
+                        </p>
 
-    return html;
+                        ${controlesResposta}
+                    </article>
+                `;
+            }
+        )
+        .join("");
 }
 
-export function cardHistoricoPendente(req) {
-    const idSeguro = escapeHtml(req.id);
+
+function templateRespondidas(
+    respondidas
+) {
+    if (
+        !Array.isArray(respondidas)
+        || respondidas.length === 0
+    ) {
+        return `
+            <p class="historico-vazio">
+                Nenhuma requisição respondida.
+            </p>
+        `;
+    }
+
+    return respondidas
+        .map(
+            requisicao => {
+                const idSeguro =
+                    escapeHtml(
+                        String(requisicao.id)
+                    );
+
+                const descricaoSegura =
+                    escapeHtml(
+                        String(
+                            requisicao.descricao
+                            ?? ""
+                        )
+                    );
+
+                const respostaSegura =
+                    escapeHtml(
+                        String(
+                            requisicao.resposta_semed
+                            ?? "Resposta não informada"
+                        )
+                    );
+
+                return `
+                    <article
+                        class="item-requisicao respondida"
+                    >
+                        <strong>
+                            Requisição #${idSeguro}
+                        </strong>
+
+                        <p>
+                            <strong>
+                                Solicitação:
+                            </strong>
+
+                            ${descricaoSegura}
+                        </p>
+
+                        <p class="resposta-semed">
+                            <strong>
+                                Resposta:
+                            </strong>
+
+                            ${respostaSegura}
+                        </p>
+                    </article>
+                `;
+            }
+        )
+        .join("");
+}
+
+
+export function historicoRequisicoes(
+    pendentes = [],
+    respondidas = [],
+    podeResponder = false
+) {
+    const listaPendentes =
+        Array.isArray(pendentes)
+            ? pendentes
+            : [];
+
+    const listaRespondidas =
+        Array.isArray(respondidas)
+            ? respondidas
+            : [];
 
     return `
-        <div style="margin-bottom:15px;padding-bottom:10px;border-bottom:1px dashed #ccc;">
-            <strong style="color:#d32f2f;">
-                Req #${idSeguro}
-            </strong>
-
-            <p style="margin:5px 0;">
-                <em>"${escapeHtml(req.descricao)}"</em>
-            </p>
-
-            <textarea
-                class="txt-resposta"
-                data-id="${idSeguro}"
-                rows="2"
-                style="width:100%;margin-top:5px;box-sizing:border-box;"
-                placeholder="Digite a resposta da SEMED..."
-            ></textarea>
-
-            <button
-                type="button"
-                class="btn-responder"
-                data-id="${idSeguro}"
-                style="margin-top:5px;background:#4caf50;color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;"
+        <details
+            class="grupo-requisicoes"
+            open
+        >
+            <summary
+                class="titulo-requisicoes-pendentes"
             >
-                Responder e Concluir
-            </button>
-        </div>
+                Pendentes
+                (${listaPendentes.length})
+            </summary>
+
+            <div class="lista-requisicoes">
+                ${
+                    templatePendentes(
+                        listaPendentes,
+                        podeResponder
+                    )
+                }
+            </div>
+        </details>
+
+        <details
+            class="grupo-requisicoes"
+        >
+            <summary
+                class="titulo-requisicoes-respondidas"
+            >
+                Respondidas
+                (${listaRespondidas.length})
+            </summary>
+
+            <div class="lista-requisicoes">
+                ${
+                    templateRespondidas(
+                        listaRespondidas
+                    )
+                }
+            </div>
+        </details>
     `;
 }
 
-export function cardHistoricoRespondida(req) {
-    return `
-        <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #ccc;">
-            <strong style="color:#388e3c;">
-                Req #${escapeHtml(req.id)}
-            </strong>
-
-            <p style="margin:5px 0;">
-                <strong>Pedido:</strong>
-                <em>"${escapeHtml(req.descricao)}"</em>
-            </p>
-
-            <p style="margin:5px 0;color:#800000;">
-                <strong>Resposta SEMED:</strong>
-                ${escapeHtml(req.resposta_semed || "Sem resposta registrada")}
-            </p>
-        </div>
-    `;
-}
 
 export function historicoVazio() {
     return `
-        <p style="text-align:center;padding:15px;">
-            Nenhuma requisição encontrada nesta unidade de ensino.
-        </p>
+        <div class="historico-vazio">
+            Nenhuma requisição encontrada
+            nesta escola.
+        </div>
     `;
 }

@@ -1,44 +1,109 @@
 // ==========================================
-// DASHBOARD.JS
+// DASHBOARD
 // ==========================================
 
-import { apiGet } from "./api.js";
-import { AppState } from "./state.js";
-import { responderRequisicaoGeral } from "./requisicoes.js";
+import {
+    apiGet
+} from "./api.js";
+
+import {
+    AppState
+} from "./state.js";
+
+import {
+    responderRequisicaoGeral,
+    usuarioPodeResponder
+} from "./requisicoes.js";
+
 import {
     dashboard,
     tituloPendentes,
     tituloRespondidas,
     cardPendente,
     cardRespondida,
+    dashboardSemPendentes,
+    dashboardSemRespondidas,
     fimDashboard
 } from "./templates/dashboard.js";
-import { dashboardLoading, erro } from "./templates/ui.js";
+
+import {
+    carregando,
+    erro
+} from "./templates/ui.js";
+
+
+// ==========================================
+// NOME DA ESCOLA
+// ==========================================
+
+function obterNomeEscola(
+    escolaId
+) {
+    const id =
+        String(escolaId ?? "");
+
+    return (
+        AppState.escolas?.[id]
+        ?? `Escola #${id}`
+    );
+}
+
+
+// ==========================================
+// VISÃO GERAL
+// ==========================================
 
 export async function carregarVisaoGeral() {
-    const painel = document.getElementById("info-escola");
+    const painel =
+        document.getElementById(
+            "info-escola"
+        );
 
     if (!painel) {
         return;
     }
 
-    painel.innerHTML = dashboardLoading();
+    painel.innerHTML = carregando(
+        "Carregando panorama..."
+    );
 
     try {
-        const data = await apiGet("/api/requisicoes/todas");
-        const requisicoes = Array.isArray(data) ? data : [];
-
-        const pendentes = requisicoes.filter(
-            (req) => req.status === "Pendente"
-        );
-        const respondidas = requisicoes.filter(
-            (req) => req.status === "Respondida"
+        const resultado = await apiGet(
+            "/api/requisicoes/todas"
         );
 
-        const total = requisicoes.length;
-        const percentualPendente = total === 0
-            ? 0
-            : (pendentes.length / total) * 100;
+        const requisicoes =
+            Array.isArray(resultado)
+                ? resultado
+                : [];
+
+        const pendentes =
+            requisicoes.filter(
+                requisicao =>
+                    requisicao.status
+                    === "Pendente"
+            );
+
+        const respondidas =
+            requisicoes.filter(
+                requisicao =>
+                    requisicao.status
+                    === "Respondida"
+            );
+
+        const total =
+            requisicoes.length;
+
+        const percentualPendente =
+            total === 0
+                ? 0
+                : (
+                    pendentes.length
+                    / total
+                ) * 100;
+
+        const podeResponder =
+            usuarioPodeResponder();
 
         let html = dashboard({
             total,
@@ -47,53 +112,95 @@ export async function carregarVisaoGeral() {
             percentualPendente
         });
 
-        if (pendentes.length > 0) {
-            html += tituloPendentes(pendentes.length);
+        html += tituloPendentes(
+            pendentes.length
+        );
 
-            pendentes.forEach((req) => {
-                const escola =
-                    AppState.escolas[req.escola_id] ??
-                    `Escola #${req.escola_id}`;
+        if (pendentes.length === 0) {
+            html +=
+                dashboardSemPendentes();
 
-                html += cardPendente({
-                    id: req.id,
-                    escola,
-                    descricao: req.descricao
-                });
-            });
+        } else {
+            pendentes.forEach(
+                requisicao => {
+                    html += cardPendente({
+                        id: requisicao.id,
+
+                        escola:
+                            obterNomeEscola(
+                                requisicao.escola_id
+                            ),
+
+                        descricao:
+                            requisicao.descricao,
+
+                        podeResponder
+                    });
+                }
+            );
         }
 
-        if (respondidas.length > 0) {
-            html += tituloRespondidas(respondidas.length);
+        html += tituloRespondidas(
+            respondidas.length
+        );
 
-            respondidas.forEach((req) => {
-                const escola =
-                    AppState.escolas[req.escola_id] ??
-                    `Escola #${req.escola_id}`;
+        if (respondidas.length === 0) {
+            html +=
+                dashboardSemRespondidas();
 
-                html += cardRespondida({
-                    id: req.id,
-                    escola,
-                    resposta: req.resposta_semed
-                });
-            });
+        } else {
+            respondidas.forEach(
+                requisicao => {
+                    html += cardRespondida({
+                        id: requisicao.id,
+
+                        escola:
+                            obterNomeEscola(
+                                requisicao.escola_id
+                            ),
+
+                        descricao:
+                            requisicao.descricao,
+
+                        resposta:
+                            requisicao.resposta_semed
+                    });
+                }
+            );
         }
 
         html += fimDashboard();
+
         painel.innerHTML = html;
 
-        painel
-            .querySelectorAll(".btn-responder-geral")
-            .forEach((botao) => {
-                botao.addEventListener("click", () => {
-                    responderRequisicaoGeral(
-                        botao.dataset.id,
-                        carregarVisaoGeral
-                    );
-                });
-            });
-    } catch (errorDashboard) {
-        console.error("Erro ao carregar Dashboard:", errorDashboard);
-        painel.innerHTML = erro("Erro ao carregar Dashboard.");
+        if (podeResponder) {
+            painel
+                .querySelectorAll(
+                    ".btn-responder-geral"
+                )
+                .forEach(
+                    botao => {
+                        botao.addEventListener(
+                            "click",
+                            () => {
+                                responderRequisicaoGeral(
+                                    botao.dataset.id,
+                                    carregarVisaoGeral
+                                );
+                            }
+                        );
+                    }
+                );
+        }
+
+    } catch (errorCarregamento) {
+        console.error(
+            "Erro ao carregar dashboard:",
+            errorCarregamento
+        );
+
+        painel.innerHTML = erro(
+            "Erro ao carregar o dashboard."
+        );
     }
 }

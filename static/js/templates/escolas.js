@@ -2,65 +2,147 @@
 // TEMPLATE DA FICHA DA ESCOLA
 // ==========================================
 
-import { escapeHtml } from "../utils.js";
+import {
+    escapeHtml
+} from "../utils.js";
+
 
 export function fichaEscola({
     id,
     nome,
     diretor,
-    telefone
+    telefone,
+    podeCriarRequisicao = false
 }) {
-    const idSeguro = escapeHtml(id);
+    const idSeguro = String(id)
+        .replace(/\D/g, "");
+
+    const nomeSeguro = escapeHtml(
+        nome ?? "Escola sem nome"
+    );
+
+    const diretorSeguro = escapeHtml(
+        diretor ?? "Não informado"
+    );
+
+    const telefoneSeguro = escapeHtml(
+        telefone ?? "Não informado"
+    );
+
+    const formularioRequisicao =
+        podeCriarRequisicao
+            ? `
+                <hr>
+
+                <section class="bloco-nova-requisicao">
+                    <h4>Nova Requisição</h4>
+
+                    <label
+                        for="setor-nova-req-${idSeguro}"
+                        class="label-campo-requisicao"
+                    >
+                        Setor responsável
+                    </label>
+
+                    <select
+                        id="setor-nova-req-${idSeguro}"
+                        class="campo-setor-requisicao"
+                        required
+                    >
+                        <option value="">
+                            Carregando setores...
+                        </option>
+                    </select>
+
+                    <small class="aviso-setores-esqueleto">
+                        A requisição será exibida somente
+                        aos usuários vinculados ao setor
+                        escolhido.
+                    </small>
+
+                    <textarea
+                        id="texto-nova-req-${idSeguro}"
+                        rows="4"
+                        maxlength="5000"
+                        class="campo-nova-requisicao"
+                        placeholder="Registre a sua requisição à SEMED aqui!"
+                    ></textarea>
+
+                    <small class="ajuda-nova-requisicao">
+                        Descreva de forma clara o problema
+                        ou a necessidade da escola.
+                    </small>
+
+                    <button
+                        type="button"
+                        id="btn-nova-req-${idSeguro}"
+                        class="btn-requisicao"
+                        data-id="${idSeguro}"
+                    >
+                        + Nova Requisição
+                    </button>
+                </section>
+            `
+            : `
+                <hr>
+
+                <div class="aviso-requisicao-restrita">
+                    Somente o diretor vinculado a esta escola
+                    pode cadastrar uma nova requisição.
+                </div>
+            `;
 
     return `
         <button
             type="button"
             id="btn-voltar-dashboard"
-            style="width:100%;margin-bottom:10px;background:#424242;color:white;border:none;padding:8px;border-radius:4px;cursor:pointer;font-weight:bold;"
+            class="btn-voltar-dashboard"
         >
             ✖ Fechar Ficha da Escola
         </button>
 
-        <h3 style="color:#800000;">${escapeHtml(nome)}</h3>
+        <h3 class="titulo-ficha-escola">
+            ${nomeSeguro}
+        </h3>
 
-        <p><strong>Diretor:</strong> ${escapeHtml(diretor)}</p>
-        <p><strong>Telefone:</strong> ${escapeHtml(telefone)}</p>
+        <div class="dados-ficha-escola">
+            <p>
+                <strong>Diretor:</strong>
+                ${diretorSeguro}
+            </p>
 
-        <hr>
-
-        <h4>Requisições</h4>
-
-        <textarea
-            id="texto-nova-req-${idSeguro}"
-            rows="3"
-            style="width:100%;padding:5px;border-radius:5px;box-sizing:border-box;"
-            placeholder="Registre a sua requisição à SEMED aqui!"
-        ></textarea>
-
-        <button
-            type="button"
-            id="btn-nova-req-${idSeguro}"
-            class="btn-requisicao"
-            data-id="${idSeguro}"
-            style="width:100%;margin-top:5px;background:#4caf50;color:white;border:none;padding:8px;cursor:pointer;border-radius:4px;font-weight:bold;"
-        >
-            + Nova Requisição
-        </button>
-
-        <hr>
-
-        <h4>Histórico de Requisições</h4>
-
-        <div id="status-requisicoes">
-            Carregando requisições...
+            <p>
+                <strong>Telefone:</strong>
+                ${telefoneSeguro}
+            </p>
         </div>
+
+        ${formularioRequisicao}
+
+        <hr>
+
+        <section class="bloco-historico-requisicoes">
+            <h4>Histórico de Requisições</h4>
+
+            <div id="status-requisicoes">
+                <em>Carregando requisições...</em>
+            </div>
+        </section>
     `;
 }
 
+
 export function escolaNaoEncontrada() {
     return `
-        <div style="padding:20px;text-align:center;">
-            Escola não encontrada.
+        <div class="escola-nao-encontrada">
+            <strong>
+                Escola não encontrada.
+            </strong>
+
+            <p>
+                Não foi possível carregar os dados
+                desta unidade de ensino.
+            </p>
         </div>
     `;
 }

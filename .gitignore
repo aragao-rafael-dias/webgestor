@@ -112,9 +112,10 @@ desktop.ini
 *.sql.gz
 
 # ==========================================
-# MISCELANEOS
+# MISCELÂNEA
 # ==========================================
 *.geojson
 /scripts
 *.csv
 *.json
+/utilidades

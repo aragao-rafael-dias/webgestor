@@ -7,7 +7,6 @@ from sqlalchemy import URL
 
 load_dotenv()
 
-
 def obter_variavel_obrigatoria(nome):
     valor = os.getenv(nome)
 
@@ -35,12 +34,10 @@ def obter_booleano(nome, padrao=False):
 
 
 class Config:
-    # Segurança da aplicação
     SECRET_KEY = obter_variavel_obrigatoria(
         "SECRET_KEY"
     )
 
-    # Banco de dados
     DB_USER = obter_variavel_obrigatoria(
         "DB_USER"
     )
@@ -61,6 +58,11 @@ class Config:
         "DB_NAME",
         "SEMDU",
     ).strip()
+    
+    APP_TIMEZONE = os.getenv(
+    "APP_TIMEZONE",
+    "America/Maceio",
+)
 
     SQLALCHEMY_DATABASE_URI = URL.create(
         drivername="postgresql+psycopg",
@@ -73,7 +75,6 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Configuração das sessões
     SESSION_COOKIE_NAME = "websig_session"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
@@ -87,7 +88,6 @@ class Config:
         hours=8
     )
 
-    # Cookie utilizado futuramente pelo "lembrar de mim"
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_SECURE = (

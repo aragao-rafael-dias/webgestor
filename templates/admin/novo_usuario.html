@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Novo usuário — WebSIG</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+
+    <script
+        src="{{ url_for('static', filename='js/admin.js') }}"
+        defer
+    ></script>
+</head>
+
+<body class="pagina-admin">
+
+    <header class="admin-cabecalho">
+
+        <div>
+            <h1>Novo usuário</h1>
+
+            <p>
+                Criação de acesso ao WebSIG
+            </p>
+        </div>
+
+        <a
+            href="{{ url_for('admin.listar_usuarios') }}"
+            class="admin-link-voltar"
+        >
+            Voltar aos usuários
+        </a>
+
+    </header>
+
+    <main class="admin-conteudo">
+
+        <section
+            class="admin-painel admin-formulario-painel"
+        >
+
+            <form
+                method="post"
+                id="form-novo-usuario"
+                novalidate
+            >
+
+                {{ form.hidden_tag() }}
+
+                <div class="admin-formulario-grid">
+
+                    <div
+                        class="admin-campo admin-campo-largo"
+                    >
+                        {{ form.nome.label }}
+
+                        {{ form.nome(
+                            autocomplete="name"
+                        ) }}
+
+                        {% for erro in form.nome.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div class="admin-campo">
+                        {{ form.login.label }}
+
+                        {{ form.login(
+                            autocomplete="username"
+                        ) }}
+
+                        {% for erro in form.login.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div class="admin-campo">
+                        {{ form.email.label }}
+
+                        {{ form.email(
+                            type="email",
+                            autocomplete="email"
+                        ) }}
+
+                        {% for erro in form.email.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div
+                        class="admin-campo admin-campo-largo"
+                    >
+                        {{ form.perfil.label }}
+
+                        {{ form.perfil(
+                            id="perfil"
+                        ) }}
+
+                        <small class="admin-ajuda">
+                            Diretores recebem escolas.
+                            Usuários de setor recebem
+                            um ou vários setores.
+                        </small>
+
+                        {% for erro in form.perfil.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div
+                        id="bloco-escolas"
+                        class="
+                            admin-campo
+                            admin-campo-largo
+                            admin-bloco-vinculos
+                        "
+                        {% if form.perfil.data != "DIRETOR" %}
+                            hidden
+                        {% endif %}
+                    >
+                        {{ form.escolas_ids.label }}
+
+                        {{ form.escolas_ids(
+                            id="escolas_ids",
+                            size=12
+                        ) }}
+
+                        <small class="admin-ajuda">
+                            Use Ctrl para selecionar mais
+                            de uma escola. O vínculo é
+                            obrigatório para diretores.
+                        </small>
+
+                        {% for erro in form.escolas_ids.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div
+                        id="bloco-setores"
+                        class="
+                            admin-campo
+                            admin-campo-largo
+                            admin-bloco-vinculos
+                        "
+                        {% if form.perfil.data != "SETOR" %}
+                            hidden
+                        {% endif %}
+                    >
+                        {{ form.setores_ids.label }}
+
+                        {{ form.setores_ids(
+                            id="setores_ids",
+                            size=14
+                        ) }}
+
+                        <small class="admin-ajuda">
+                            Use Ctrl para selecionar mais
+                            de um setor. Os setores aparecem
+                            respeitando a hierarquia da
+                            Secretaria.
+                        </small>
+
+                        {% for erro in form.setores_ids.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div
+                        id="bloco-setor-principal"
+                        class="
+                            admin-campo
+                            admin-campo-largo
+                            admin-bloco-vinculos
+                        "
+                        {% if form.perfil.data != "SETOR" %}
+                            hidden
+                        {% endif %}
+                    >
+                        {{ form.setor_principal_id.label }}
+
+                        {{ form.setor_principal_id(
+                            id="setor_principal_id",
+                            data_valor_inicial=(
+                                form.setor_principal_id.data
+                                or ""
+                            )
+                        ) }}
+
+                        <small class="admin-ajuda">
+                            O setor principal será usado
+                            como referência inicial no
+                            painel do usuário.
+                        </small>
+
+                        {% for erro in form.setor_principal_id.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div class="admin-campo">
+                        {{ form.senha.label }}
+
+                        {{ form.senha(
+                            autocomplete="new-password"
+                        ) }}
+
+                        <small class="admin-ajuda">
+                            A senha deve possuir pelo
+                            menos 12 caracteres.
+                        </small>
+
+                        {% for erro in form.senha.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                    <div class="admin-campo">
+                        {{ form.confirmar_senha.label }}
+
+                        {{ form.confirmar_senha(
+                            autocomplete="new-password"
+                        ) }}
+
+                        {% for erro in form.confirmar_senha.errors %}
+                            <small class="admin-erro">
+                                {{ erro }}
+                            </small>
+                        {% endfor %}
+                    </div>
+
+                </div>
+
+                <div class="admin-formulario-acoes">
+
+                    <a
+                        href="{{ url_for('admin.listar_usuarios') }}"
+                        class="admin-botao-secundario"
+                    >
+                        Cancelar
+                    </a>
+
+                    {{ form.submit(
+                        class_="admin-botao-primario"
+                    ) }}
+
+                </div>
+
+            </form>
+
+        </section>
+
+    </main>
+
+</body>
+
+</html>

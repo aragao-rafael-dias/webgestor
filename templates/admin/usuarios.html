@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Usuários — WebSIG</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+
+<body class="pagina-admin">
+
+    <header class="admin-cabecalho">
+
+        <div>
+            <h1>
+                Administração de usuários
+            </h1>
+
+            <p>
+                Gerenciamento de acesso ao WebSIG
+            </p>
+        </div>
+
+        <div class="admin-cabecalho-acoes">
+
+            <a
+                href="{{ url_for('home.home') }}"
+                class="admin-link-voltar"
+            >
+                Voltar ao mapa
+            </a>
+
+            <span class="admin-usuario-atual">
+                {{ current_user.nome }}
+            </span>
+
+        </div>
+
+    </header>
+
+    <main class="admin-conteudo">
+
+        <section class="admin-painel">
+
+            <div class="admin-painel-titulo">
+
+                <div>
+                    <h2>
+                        Usuários cadastrados
+                    </h2>
+
+                    <p>
+                        Total: {{ usuarios|length }}
+                    </p>
+                </div>
+
+                <a
+                    href="{{ url_for('admin.novo_usuario') }}"
+                    class="admin-botao-primario"
+                >
+                    Novo usuário
+                </a>
+
+            </div>
+
+            {% if usuarios %}
+
+                <div class="admin-tabela-container">
+
+                    <table class="admin-tabela">
+
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Login</th>
+                                <th>E-mail</th>
+                                <th>Perfil</th>
+                                <th>Vínculos</th>
+                                <th>Situação</th>
+                                <th>Criado por</th>
+                                <th>Último acesso</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for usuario in usuarios %}
+
+                                {% set resumo = vinculos_por_usuario.get(usuario.id) %}
+
+                                <tr>
+
+                                    <td>
+                                        <strong>
+                                            {{ usuario.nome }}
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        {{ usuario.login }}
+                                    </td>
+
+                                    <td>
+                                        {{
+                                            usuario.email
+                                            or "Não informado"
+                                        }}
+                                    </td>
+
+                                    <td>
+                                        <span class="admin-perfil">
+                                            {{ usuario.perfil }}
+                                        </span>
+                                    </td>
+
+                                    <td class="admin-coluna-vinculos">
+
+                                        {% if resumo and resumo.itens %}
+
+                                            {% set total_vinculos = resumo.itens|length %}
+
+                                            <span class="admin-vinculo-tipo">
+                                                {{ resumo.tipo }}
+                                            </span>
+
+                                            {% if total_vinculos <= 3 %}
+
+                                                <div class="admin-vinculos">
+
+                                                    {% for item in resumo.itens %}
+
+                                                        {% if usuario.perfil == "SETOR" %}
+
+                                                            <span
+                                                                class="
+                                                                    admin-vinculo-item
+                                                                    {% if item.principal %}
+                                                                        principal
+                                                                    {% endif %}
+                                                                "
+                                                            >
+                                                                <span>
+                                                                    {{ item.nome }}
+                                                                </span>
+
+                                                                {% if item.principal %}
+
+                                                                    <strong>
+                                                                        Principal
+                                                                    </strong>
+
+                                                                {% endif %}
+                                                            </span>
+
+                                                        {% else %}
+
+                                                            <span class="admin-vinculo-item">
+                                                                {{ item }}
+                                                            </span>
+
+                                                        {% endif %}
+
+                                                    {% endfor %}
+
+                                                </div>
+
+                                            {% else %}
+
+                                                <details class="admin-vinculos-resumo">
+
+                                                    <summary>
+
+                                                        <span class="admin-vinculos-quantidade">
+
+                                                            {{ total_vinculos }}
+
+                                                            {% if total_vinculos == 1 %}
+                                                                vínculo
+                                                            {% else %}
+                                                                vínculos
+                                                            {% endif %}
+
+                                                        </span>
+
+                                                        <span class="admin-vinculos-acao">
+                                                            Ver lista
+                                                        </span>
+
+                                                    </summary>
+
+                                                    <div class="admin-vinculos-lista">
+
+                                                        {% for item in resumo.itens %}
+
+                                                            {% if usuario.perfil == "SETOR" %}
+
+                                                                <div
+                                                                    class="
+                                                                        admin-vinculo-item
+                                                                        admin-vinculo-item-linha
+                                                                        {% if item.principal %}
+                                                                            principal
+                                                                        {% endif %}
+                                                                    "
+                                                                >
+                                                                    <span>
+                                                                        {{ item.nome }}
+                                                                    </span>
+
+                                                                    {% if item.principal %}
+
+                                                                        <strong>
+                                                                            Principal
+                                                                        </strong>
+
+                                                                    {% endif %}
+                                                                </div>
+
+                                                            {% else %}
+
+                                                                <div
+                                                                    class="
+                                                                        admin-vinculo-item
+                                                                        admin-vinculo-item-linha
+                                                                    "
+                                                                >
+                                                                    {{ item }}
+                                                                </div>
+
+                                                            {% endif %}
+
+                                                        {% endfor %}
+
+                                                    </div>
+
+                                                </details>
+
+                                            {% endif %}
+
+                                        {% elif usuario.perfil in ["DIRETOR", "SETOR"] %}
+
+                                            <span class="admin-sem-vinculo">
+                                                Sem vínculo ativo
+                                            </span>
+
+                                        {% else %}
+
+                                            <span class="admin-sem-vinculo">
+                                                Não se aplica
+                                            </span>
+
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td>
+
+                                        {% if usuario.ativo %}
+
+                                            <span class="admin-status ativo">
+                                                Ativo
+                                            </span>
+
+                                        {% else %}
+
+                                            <span class="admin-status inativo">
+                                                Inativo
+                                            </span>
+
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td>
+
+                                        {% if usuario.criado_por %}
+
+                                            {{ usuario.criado_por.nome }}
+
+                                        {% else %}
+
+                                            Sistema / terminal
+
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td>
+
+                                        {% if usuario.ultimo_acesso_em %}
+
+                                            {{
+                                                usuario.ultimo_acesso_em
+                                                | data_hora_local
+                                            }}
+
+                                        {% else %}
+
+                                            Nunca acessou
+
+                                        {% endif %}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="admin-vazio">
+                    Nenhum usuário cadastrado.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+    </main>
+
+</body>
+
+</html>

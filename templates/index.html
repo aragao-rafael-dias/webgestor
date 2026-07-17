@@ -1,30 +1,184 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>WebSIG - GESTOR (SEMED)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
 </head>
-<body>
-    <div id="container">
-        <div id="sidebar">
-            <h2>Gestor SEMED</h2>
-            <hr>
-            <div id="info-escola">
-                <p>Clique em uma Unidade de Ensino para ter mais informações!</p>
+
+<body data-perfil-usuario="{{ current_user.perfil }}">
+    
+    <!-- ======================================
+         CABEÇALHO
+         ====================================== -->
+
+    <header class="websig-header">
+
+        <div class="websig-identidade">
+
+            <div
+                class="websig-logo"
+                aria-hidden="true"
+            >
+                🗺️
             </div>
+
+            <div class="websig-titulos">
+                <h1>WebSIG</h1>
+
+                <p>
+                    Gestão do Transporte Escolar — SEMED
+                </p>
+            </div>
+
         </div>
 
+        {% if current_user.is_authenticated %}
 
-        <div id="map"></div>
-    </div>
+                <details class="websig-menu-usuario">
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                    <summary class="websig-menu-resumo">
+                    
+                        <span class="websig-status"></span>
+                    
+                        <span class="websig-menu-identificacao">
+                            <strong>
+                                {{ current_user.nome }}
+                            </strong>
+                        
+                            <small>
+                                {{ current_user.perfil|capitalize }}
+                            </small>
+                        </span>
+                    
+                        <span
+                            class="websig-menu-seta"
+                            aria-hidden="true"
+                        >
+                            ▾
+                        </span>
+                    
+                    </summary>
+                
+                    <div class="websig-menu-lista">
+                    
+                        {% if current_user.perfil == "ADMIN" %}
+                    
+                            <a href="{{ url_for('admin.listar_usuarios') }}">
+                                Gerenciar usuários
+                            </a>
+                        
+                            <a href="{{ url_for('admin.novo_usuario') }}">
+                                Novo usuário
+                            </a>
+                        
+                            <div class="websig-menu-divisor"></div>
+                        
+                        {% endif %}
+                        
+                        <form
+                            method="post"
+                            action="{{ url_for('auth.logout') }}"
+                        >
+                            {{ logout_form.hidden_tag() }}
+                        
+                            <button type="submit">
+                                Sair do sistema
+                            </button>
+                        </form>
+                    
+                    </div>
+                
+                </details>
+                <form
+                    method="post"
+                    action="{{ url_for('auth.logout') }}"
+                    class="websig-logout-form"
+                >
+                    {{ logout_form.hidden_tag() }}
+
+                    <button
+                        type="submit"
+                        class="websig-btn-sair"
+                        title="Sair do sistema"
+                    >
+                        <span
+                            class="websig-btn-icone"
+                            aria-hidden="true"
+                        >
+                            ↪
+                        </span>
+
+                        <span>Sair</span>
+                    </button>
+
+                </form>
+
+            </div>
+
+        {% endif %}
+
+    </header>
+
+
+    <!-- ======================================
+         CONTEÚDO PRINCIPAL
+         ====================================== -->
+
+    <main id="container">
+
+        <aside id="sidebar">
+
+            <h2>Gestor SEMED</h2>
+
+            <hr>
+
+            <div id="info-escola">
+                <p>
+                    Clique em uma Unidade de Ensino
+                    para ter mais informações!
+                </p>
+            </div>
+
+        </aside>
+
+        <div
+            id="map"
+            aria-label="Mapa das escolas e rotas"
+        ></div>
+
+    </main>
+
+
+    <!-- ======================================
+         SCRIPTS
+         ====================================== -->
+
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    ></script>
+
     <script
         type="module"
-        src="{{ url_for('static', filename='js/mapa.js') }}">
-    </script>
+        src="{{ url_for('static', filename='js/mapa.js') }}"
+    ></script>
+
 </body>
+
 </html>

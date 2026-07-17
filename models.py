@@ -4,6 +4,7 @@ from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 from sqlalchemy.orm import validates
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 db = SQLAlchemy()
@@ -130,9 +131,25 @@ class RotaGeral(db.Model):
 
 class Requisicao(db.Model):
     __tablename__ = "requisicoes"
-    __table_args__ = {
-        "schema": "semed"
-    }
+
+    __table_args__ = (
+        db.Index(
+            "ix_requisicoes_escola_status",
+            "escola_id",
+            "status",
+        ),
+        db.Index(
+            "ix_requisicoes_setor_status",
+            "setor_id",
+            "status",
+        ),
+        {
+            "schema": "semed",
+        },
+    )
+
+    STATUS_PENDENTE = "Pendente"
+    STATUS_RESPONDIDA = "Respondida"
 
     id = db.Column(
         db.Integer,
@@ -142,13 +159,24 @@ class Requisicao(db.Model):
     escola_id = db.Column(
         db.Integer,
         db.ForeignKey(
-            "semed.escolas.id"
+            "semed.escolas.id",
+            ondelete="CASCADE",
         ),
         nullable=False,
     )
 
+    setor_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.setores.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+    )
+
     tipo = db.Column(
         db.String(50),
+        nullable=True,
     )
 
     descricao = db.Column(
@@ -158,22 +186,123 @@ class Requisicao(db.Model):
 
     status = db.Column(
         db.String(20),
-        default="Pendente",
+        nullable=False,
+        default=STATUS_PENDENTE,
+        server_default=STATUS_PENDENTE,
     )
 
     data_criacao = db.Column(
-        db.DateTime(timezone=True),
+        db.DateTime,
+        nullable=False,
         server_default=db.func.now(),
     )
 
     resposta_semed = db.Column(
         db.Text,
+        nullable=True,
+    )
+
+    respondido_por_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.usuarios.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    data_resposta = db.Column(
+        db.DateTime,
+        nullable=True,
     )
 
     escola = db.relationship(
         "Escola",
-        backref="requisicoes",
+        backref=db.backref(
+            "requisicoes",
+            lazy="dynamic",
+        ),
     )
+
+    setor = db.relationship(
+        "Setor",
+        back_populates="requisicoes",
+        foreign_keys=[setor_id],
+    )
+
+    respondido_por = db.relationship(
+        "Usuario",
+        foreign_keys=[respondido_por_id],
+        backref=db.backref(
+            "requisicoes_respondidas",
+            lazy="dynamic",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<Requisicao id={self.id} "
+            f"escola_id={self.escola_id} "
+            f"setor_id={self.setor_id} "
+            f"status={self.status!r}>"
+        )
+
+    @property
+    def pendente(self):
+        return (
+            self.status
+            == self.STATUS_PENDENTE
+        )
+
+    @property
+    def respondida(self):
+        return (
+            self.status
+            == self.STATUS_RESPONDIDA
+        )
+
+    def para_dict(self):
+        return {
+            "id": self.id,
+            "escola_id":
+                self.escola_id,
+            "setor_id":
+                self.setor_id,
+            "setor": (
+                self.setor.nome
+                if self.setor
+                else None
+            ),
+            "tipo":
+                self.tipo,
+            "descricao":
+                self.descricao,
+            "status":
+                self.status,
+            "data_criacao": (
+                self.data_criacao.isoformat()
+                if self.data_criacao
+                else None
+            ),
+            "resposta_semed":
+                self.resposta_semed,
+            "respondido_por_id":
+                self.respondido_por_id,
+            "respondido_por": (
+                getattr(
+                    self.respondido_por,
+                    "nome",
+                    None,
+                )
+                if self.respondido_por
+                else None
+            ),
+            "data_resposta": (
+                self.data_resposta.isoformat()
+                if self.data_resposta
+                else None
+            ),
+        }
 
 
 # ==========================================
@@ -211,6 +340,15 @@ class Usuario(UserMixin, db.Model):
     id = db.Column(
         db.Integer,
         primary_key=True,
+    )
+
+    criado_por_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.usuarios.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
     )
 
     nome = db.Column(
@@ -277,6 +415,17 @@ class Usuario(UserMixin, db.Model):
     "UsuarioEscola",
     back_populates="usuario",
     lazy="selectin",
+    )
+    criado_por = db.relationship(
+    "Usuario",
+    remote_side=[id],
+    foreign_keys=[criado_por_id],
+    back_populates="usuarios_criados",
+    )
+    usuarios_criados = db.relationship(
+        "Usuario",
+        foreign_keys="Usuario.criado_por_id",
+        back_populates="criado_por",
     )
 
     @property
@@ -500,3 +649,407 @@ class UsuarioEscola(db.Model):
             data_fim
             or db.func.current_date()
         )
+
+# ==========================================
+# SETORES DA SECRETARIA
+# ==========================================
+
+class Setor(db.Model):
+    __tablename__ = "setores"
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "sigla",
+            name="uq_setores_sigla",
+        ),
+        db.Index(
+            "ix_setores_ativo_ordem",
+            "ativo",
+            "ordem",
+        ),
+        {
+            "schema": "semed",
+        },
+    )
+
+    TIPO_DEPARTAMENTO = "DEPARTAMENTO"
+    TIPO_COORDENACAO = "COORDENACAO"
+    TIPO_NUCLEO = "NUCLEO"
+    TIPO_ASSESSORIA = "ASSESSORIA"
+    TIPO_CONSELHO = "CONSELHO"
+    TIPO_GABINETE = "GABINETE"
+    TIPO_SECRETARIA = "SECRETARIA"
+    TIPO_OUTRO = "OUTRO"
+
+    TIPOS_VALIDOS = (
+        TIPO_DEPARTAMENTO,
+        TIPO_COORDENACAO,
+        TIPO_NUCLEO,
+        TIPO_ASSESSORIA,
+        TIPO_CONSELHO,
+        TIPO_GABINETE,
+        TIPO_SECRETARIA,
+        TIPO_OUTRO,
+    )
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True,
+    )
+
+    nome = db.Column(
+        db.String(180),
+        nullable=False,
+    )
+
+    sigla = db.Column(
+        db.String(30),
+        nullable=True,
+    )
+
+    tipo = db.Column(
+        db.String(30),
+        nullable=False,
+        default=TIPO_OUTRO,
+        server_default=TIPO_OUTRO,
+    )
+
+    setor_pai_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.setores.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    descricao = db.Column(
+        db.Text,
+        nullable=True,
+    )
+
+    competencias = db.Column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=db.text(
+            "'[]'::jsonb"
+        ),
+    )
+
+    imagem_url = db.Column(
+        db.String(500),
+        nullable=True,
+    )
+
+    dados_websig = db.Column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=db.text(
+            "'{}'::jsonb"
+        ),
+    )
+
+    ativo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True,
+        server_default=db.true(),
+    )
+
+    ordem = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+
+    criado_em = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+    )
+
+    atualizado_em = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    setor_pai = db.relationship(
+        "Setor",
+        remote_side=[id],
+        back_populates="setores_filhos",
+        foreign_keys=[setor_pai_id],
+    )
+
+    setores_filhos = db.relationship(
+        "Setor",
+        back_populates="setor_pai",
+        foreign_keys=[setor_pai_id],
+        lazy="selectin",
+    )
+
+    requisicoes = db.relationship(
+        "Requisicao",
+        back_populates="setor",
+        lazy="dynamic",
+    )
+
+    vinculos_usuarios = db.relationship(
+        "UsuarioSetor",
+        back_populates="setor",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    def __repr__(self):
+        return (
+            f"<Setor id={self.id} "
+            f"nome={self.nome!r}>"
+        )
+
+    @property
+    def nome_completo(self):
+        if self.sigla:
+            return f"{self.nome} ({self.sigla})"
+
+        return self.nome
+
+    def para_dict(self):
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "nome_completo":
+                self.nome_completo,
+            "sigla": self.sigla,
+            "tipo": self.tipo,
+            "setor_pai_id":
+                self.setor_pai_id,
+            "descricao":
+                self.descricao,
+            "competencias":
+                self.competencias or [],
+            "imagem_url":
+                self.imagem_url,
+            "dados_websig":
+                self.dados_websig or {},
+            "ativo":
+                self.ativo,
+            "ordem":
+                self.ordem,
+        }
+    
+# ==========================================
+# VÍNCULO ENTRE USUÁRIO E SETOR
+# ==========================================
+
+class UsuarioSetor(db.Model):
+    __tablename__ = "usuarios_setores"
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "usuario_id",
+            "setor_id",
+            name="uq_usuario_setor",
+        ),
+        db.Index(
+            "ix_usuarios_setores_usuario_ativo",
+            "usuario_id",
+            "ativo",
+        ),
+        db.Index(
+            "ix_usuarios_setores_setor_ativo",
+            "setor_id",
+            "ativo",
+        ),
+        {
+            "schema": "semed",
+        },
+    )
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True,
+    )
+
+    usuario_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.usuarios.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    setor_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.setores.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    principal = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default=db.false(),
+    )
+
+    ativo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True,
+        server_default=db.true(),
+    )
+
+    inicio_vinculo = db.Column(
+        db.Date,
+        nullable=False,
+        server_default=db.text(
+            "CURRENT_DATE"
+        ),
+    )
+
+    fim_vinculo = db.Column(
+        db.Date,
+        nullable=True,
+    )
+
+    criado_em = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+    )
+
+    usuario = db.relationship(
+        "Usuario",
+        foreign_keys=[usuario_id],
+        backref=db.backref(
+            "vinculos_setores",
+            lazy="selectin",
+            cascade="all, delete-orphan",
+        ),
+    )
+
+    setor = db.relationship(
+        "Setor",
+        foreign_keys=[setor_id],
+        back_populates="vinculos_usuarios",
+    )
+
+    def __repr__(self):
+        return (
+            f"<UsuarioSetor "
+            f"usuario_id={self.usuario_id} "
+            f"setor_id={self.setor_id}>"
+        )
+
+    @property
+    def vinculo_atual(self):
+        return (
+            self.ativo
+            and self.fim_vinculo is None
+        )
+
+    def para_dict(self):
+        return {
+            "id": self.id,
+            "usuario_id":
+                self.usuario_id,
+            "setor_id":
+                self.setor_id,
+            "setor":
+                self.setor.nome
+                if self.setor
+                else None,
+            "principal":
+                self.principal,
+            "ativo":
+                self.ativo,
+            "inicio_vinculo": (
+                self.inicio_vinculo.isoformat()
+                if self.inicio_vinculo
+                else None
+            ),
+            "fim_vinculo": (
+                self.fim_vinculo.isoformat()
+                if self.fim_vinculo
+                else None
+            ),
+        }
+    
+# ==========================================
+# DADOS DO PAINEL DA ESCOLA
+# ==========================================
+
+class EscolaPainel(db.Model):
+    __tablename__ = "escolas_painel"
+
+    __table_args__ = {
+        "schema": "semed",
+    }
+
+    escola_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "semed.escolas.id",
+            ondelete="CASCADE",
+        ),
+        primary_key=True,
+    )
+
+    imagem_url = db.Column(
+        db.String(500),
+        nullable=True,
+    )
+
+    dados_websig = db.Column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=db.text(
+            "'{}'::jsonb"
+        ),
+    )
+
+    atualizado_em = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    escola = db.relationship(
+        "Escola",
+        backref=db.backref(
+            "dados_painel",
+            uselist=False,
+            cascade="all, delete-orphan",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<EscolaPainel "
+            f"escola_id={self.escola_id}>"
+        )
+
+    def para_dict(self):
+        return {
+            "escola_id":
+                self.escola_id,
+            "imagem_url":
+                self.imagem_url,
+            "dados_websig":
+                self.dados_websig or {},
+            "atualizado_em": (
+                self.atualizado_em.isoformat()
+                if self.atualizado_em
+                else None
+            ),
+        }

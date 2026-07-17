@@ -1,5 +1,5 @@
 // ==========================================
-// API.JS
+// API
 // ==========================================
 
 const TIMEOUT_PADRAO = 15000;
@@ -55,7 +55,6 @@ async function request(url, options = {}) {
                         mensagem;
                 }
             } catch (_) {
-                // Mantém a mensagem baseada no status HTTP.
             }
 
             throw new Error(mensagem);
