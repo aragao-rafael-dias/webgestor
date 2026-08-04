@@ -1,5 +1,5 @@
 // ==========================================
-// CONFIG
+// CONFIG.JS
 // ==========================================
 
 export const CONFIG = Object.freeze({
@@ -34,5 +34,20 @@ export const coresRegioes = Object.freeze({
     "4": "#FFEB3B",
     "5": "#9B4D96",
     "6": "#ED8936",
-    "7": "#5E2D79"
+    "7": "#5E2D79",
+
+    // Região Universitária
+    "universidade": "#009688"
+});
+
+
+export const nomesRegioes = Object.freeze({
+    "1": "Região 1",
+    "2": "Região 2",
+    "3": "Região 3",
+    "4": "Região 4",
+    "5": "Região 5",
+    "6": "Região 6",
+    "7": "Região 7",
+    "universidade": "Região Universitária"
 });

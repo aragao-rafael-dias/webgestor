@@ -31,7 +31,16 @@ def primeiro_valor(dados, *chaves):
     return None
 
 
-def contagens_requisicoes_por_campo(campo, ids):
+def contagens_requisicoes_entidade(
+    tipo_entidade,
+    ids,
+):
+    """
+    Conta requisições em que a escola ou o setor
+    aparece como origem, destino atual ou participante
+    de uma movimentação anterior.
+    """
+
     resultado = {
         item_id: {
             "total": 0,
@@ -44,29 +53,142 @@ def contagens_requisicoes_por_campo(campo, ids):
     if not ids:
         return resultado
 
-    linhas = (
-        db.session.execute(
-            db.select(
-                campo,
-                Requisicao.status,
-                func.count(Requisicao.id),
-            )
-            .where(campo.in_(ids))
-            .group_by(campo, Requisicao.status)
+    if tipo_entidade == "ESCOLA":
+        coluna_origem_requisicao = (
+            "origem_escola_id"
         )
-        .all()
+        coluna_destino_requisicao = (
+            "destino_escola_id"
+        )
+        coluna_origem_movimento = (
+            "origem_escola_id"
+        )
+        coluna_destino_movimento = (
+            "destino_escola_id"
+        )
+
+    elif tipo_entidade == "SETOR":
+        coluna_origem_requisicao = (
+            "origem_setor_id"
+        )
+        coluna_destino_requisicao = (
+            "destino_setor_id"
+        )
+        coluna_origem_movimento = (
+            "origem_setor_id"
+        )
+        coluna_destino_movimento = (
+            "destino_setor_id"
+        )
+
+    else:
+        return resultado
+
+    parametros = {
+        f"id_{indice}": item_id
+        for indice, item_id
+        in enumerate(ids)
+    }
+
+    marcadores = ", ".join(
+        f":id_{indice}"
+        for indice in range(len(ids))
     )
 
-    for item_id, status, quantidade in linhas:
+    consulta = text(
+        f"""
+        WITH participantes AS (
+            SELECT
+                r.id AS requisicao_id,
+                r.{coluna_origem_requisicao}
+                    AS entidade_id
+            FROM semed.requisicoes AS r
+            WHERE r.{coluna_origem_requisicao}
+                IN ({marcadores})
+
+            UNION
+
+            SELECT
+                r.id AS requisicao_id,
+                r.{coluna_destino_requisicao}
+                    AS entidade_id
+            FROM semed.requisicoes AS r
+            WHERE r.{coluna_destino_requisicao}
+                IN ({marcadores})
+
+            UNION
+
+            SELECT
+                m.requisicao_id,
+                m.{coluna_origem_movimento}
+                    AS entidade_id
+            FROM semed.requisicoes_movimentacoes AS m
+            WHERE m.{coluna_origem_movimento}
+                IN ({marcadores})
+
+            UNION
+
+            SELECT
+                m.requisicao_id,
+                m.{coluna_destino_movimento}
+                    AS entidade_id
+            FROM semed.requisicoes_movimentacoes AS m
+            WHERE m.{coluna_destino_movimento}
+                IN ({marcadores})
+        )
+
+        SELECT
+            p.entidade_id,
+            r.status,
+            COUNT(
+                DISTINCT p.requisicao_id
+            ) AS quantidade
+
+        FROM participantes AS p
+
+        INNER JOIN semed.requisicoes AS r
+            ON r.id = p.requisicao_id
+
+        WHERE p.entidade_id IS NOT NULL
+
+        GROUP BY
+            p.entidade_id,
+            r.status
+        """
+    )
+
+    linhas = db.session.execute(
+        consulta,
+        parametros,
+    ).all()
+
+    for (
+        item_id,
+        status,
+        quantidade,
+    ) in linhas:
         if item_id not in resultado:
             continue
 
-        resultado[item_id]["total"] += quantidade
+        resultado[item_id]["total"] += (
+            quantidade
+        )
 
-        if status == Requisicao.STATUS_PENDENTE:
-            resultado[item_id]["pendentes"] += quantidade
-        elif status == Requisicao.STATUS_RESPONDIDA:
-            resultado[item_id]["respondidas"] += quantidade
+        if (
+            status
+            == Requisicao.STATUS_PENDENTE
+        ):
+            resultado[
+                item_id
+            ]["pendentes"] += quantidade
+
+        elif (
+            status
+            == Requisicao.STATUS_RESPONDIDA
+        ):
+            resultado[
+                item_id
+            ]["respondidas"] += quantidade
 
     return resultado
 
@@ -278,8 +400,8 @@ def painel_contextual():
         )
 
         ids = [escola.id for escola, painel in linhas]
-        contagens = contagens_requisicoes_por_campo(
-            Requisicao.escola_id,
+        contagens = contagens_requisicoes_entidade(
+            "ESCOLA",
             ids,
         )
 
@@ -331,8 +453,8 @@ def painel_contextual():
         )
 
         ids = [setor.id for vinculo, setor in linhas]
-        contagens = contagens_requisicoes_por_campo(
-            Requisicao.setor_id,
+        contagens = contagens_requisicoes_entidade(
+            "SETOR",
             ids,
         )
 

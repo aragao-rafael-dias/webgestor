@@ -1,14 +1,20 @@
 // ==========================================
-// UTILS
+// UTILS.JS
 // ==========================================
 
 export function valor(...campos) {
     for (const campo of campos) {
-        if (campo === undefined || campo === null) {
+        if (
+            campo === undefined
+            || campo === null
+        ) {
             continue;
         }
 
-        if (typeof campo === "string" && campo.trim() === "") {
+        if (
+            typeof campo === "string"
+            && campo.trim() === ""
+        ) {
             continue;
         }
 
@@ -18,8 +24,10 @@ export function valor(...campos) {
     return "";
 }
 
+
 export function obterId(feature = {}) {
-    const props = feature.properties ?? {};
+    const props =
+        feature.properties ?? {};
 
     return valor(
         feature.id,
@@ -30,8 +38,18 @@ export function obterId(feature = {}) {
     );
 }
 
+
+function normalizarTextoRegiao(valorOriginal) {
+    return String(valorOriginal ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase();
+}
+
+
 export function obterIdRegiao(props = {}) {
-    const texto = valor(
+    const textoOriginal = valor(
         props.regiao,
         props.REGIAO,
         props.Regiao,
@@ -39,20 +57,62 @@ export function obterIdRegiao(props = {}) {
         props.Região
     );
 
-    const match = String(texto).match(/\d+/);
+    const textoNormalizado =
+        normalizarTextoRegiao(
+            textoOriginal
+        );
 
-    return match
-        ? String(Number(match[0]))
-        : String(texto).trim();
+    /*
+     * O GeoJSON usa:
+     *
+     *     REGIÃO UNIVERSIDADE
+     *
+     * Também aceitamos variações como:
+     *
+     *     REGIÃO UNIVERSITÁRIA
+     *     UNIVERSIDADE
+     *     UNIVERSITARIA
+     */
+    if (
+        textoNormalizado.includes(
+            "UNIVERSIT"
+        )
+        || textoNormalizado.includes(
+            "UNIVERSIDADE"
+        )
+    ) {
+        return "universidade";
+    }
+
+    const correspondenciaNumero =
+        textoNormalizado.match(/\d+/);
+
+    if (correspondenciaNumero) {
+        return String(
+            Number(
+                correspondenciaNumero[0]
+            )
+        );
+    }
+
+    return textoNormalizado
+        .toLowerCase()
+        .replace(/\s+/g, "_");
 }
 
+
 export function abrirNovaAba(url) {
-    const novaAba = window.open(url, "_blank", "noopener,noreferrer");
+    const novaAba = window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer"
+    );
 
     if (novaAba) {
         novaAba.opener = null;
     }
 }
+
 
 export function escapeHtml(valorOriginal) {
     return String(valorOriginal ?? "")

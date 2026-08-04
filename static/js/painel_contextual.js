@@ -15,6 +15,13 @@ import {
 } from "./state.js";
 
 
+import {
+    carregarRequisicoesSetor,
+    novaRequisicaoSetor,
+    prepararFormularioRequisicaoSetor
+} from "./requisicoes.js";
+
+
 let dadosPainel = null;
 let itemSelecionadoId = null;
 let eventosRegistrados = false;
@@ -368,6 +375,47 @@ function renderizarSetor(item) {
                 `
                 : ""
         }
+
+        <section class="painel-contextual-secao req-form-setor">
+            <h4>Nova requisição para escola</h4>
+
+            <label for="escola-destino-setor-${item.id}">
+                Escola de destino
+            </label>
+
+            <select
+                id="escola-destino-setor-${item.id}"
+                class="req-select"
+            >
+                <option value="">
+                    Carregando escolas...
+                </option>
+            </select>
+
+            <textarea
+                id="texto-nova-req-setor-${item.id}"
+                rows="4"
+                maxlength="5000"
+                class="req-textarea"
+                placeholder="Descreva a solicitação do setor"
+            ></textarea>
+
+            <button
+                type="button"
+                id="btn-nova-req-setor-${item.id}"
+                class="btn-requisicao"
+            >
+                Enviar para escola
+            </button>
+        </section>
+
+        <section class="painel-contextual-secao">
+            <h4>Requisições do setor</h4>
+
+            <div id="status-requisicoes-setor-${item.id}">
+                Carregando requisições...
+            </div>
+        </section>
     `;
 }
 
@@ -449,6 +497,27 @@ function renderizarDadosPainel() {
                     renderizarDadosPainel();
                 }
             );
+
+        if (dadosPainel.tipo === "SETOR") {
+            prepararFormularioRequisicaoSetor(
+                selecionado.id
+            );
+
+            conteudo
+                .querySelector(
+                    `#btn-nova-req-setor-${selecionado.id}`
+                )
+                ?.addEventListener(
+                    "click",
+                    () => novaRequisicaoSetor(
+                        selecionado.id
+                    )
+                );
+
+            carregarRequisicoesSetor(
+                selecionado.id
+            );
+        }
 
         return;
     }

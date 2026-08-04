@@ -39,6 +39,8 @@ from routes.memorial import memorial_bp
 from routes.requisicoes import requisicoes_bp
 from routes.rotas import rotas_bp
 from routes.setores import setores_bp
+from routes.busca_mapa import busca_mapa_bp
+from routes.rotas_pcd import (rotas_pcd_bp)
 
 # ==========================================
 # CRIAÇÃO DA APLICAÇÃO
@@ -311,11 +313,35 @@ app.register_blueprint(
     setores_bp
 )
 
+app.register_blueprint(
+    busca_mapa_bp
+)
+
+app.register_blueprint(
+    rotas_pcd_bp
+)
+
+from comandos.rotas_geojson import (
+    registrar_comandos_rotas_geojson,
+)
+
 from comandos.setores import (
     registrar_comandos_setores,
 )
 
 registrar_comandos_setores(
+    app
+)
+
+from comandos.memoriais import (
+    registrar_comandos_memoriais,
+)
+
+registrar_comandos_memoriais(
+    app
+)
+
+registrar_comandos_rotas_geojson(
     app
 )
 

@@ -38,26 +38,46 @@ export function fichaEscola({
                     <h4>Nova Requisição</h4>
 
                     <label
-                        for="setor-nova-req-${idSeguro}"
+                        for="tipo-destino-nova-req-${idSeguro}"
                         class="label-campo-requisicao"
                     >
-                        Setor responsável
+                        Tipo de destino
                     </label>
 
                     <select
-                        id="setor-nova-req-${idSeguro}"
+                        id="tipo-destino-nova-req-${idSeguro}"
+                        class="campo-setor-requisicao"
+                    >
+                        <option value="SETOR">
+                            Setor da SEMED
+                        </option>
+
+                        <option value="ESCOLA">
+                            Outra escola
+                        </option>
+                    </select>
+
+                    <label
+                        for="destino-nova-req-${idSeguro}"
+                        class="label-campo-requisicao"
+                    >
+                        Destino
+                    </label>
+
+                    <select
+                        id="destino-nova-req-${idSeguro}"
                         class="campo-setor-requisicao"
                         required
                     >
                         <option value="">
-                            Carregando setores...
+                            Carregando destinos...
                         </option>
                     </select>
 
                     <small class="aviso-setores-esqueleto">
-                        A requisição será exibida somente
-                        aos usuários vinculados ao setor
-                        escolhido.
+                        A origem será esta escola. O destino
+                        poderá ser um setor ou outra unidade
+                        de ensino.
                     </small>
 
                     <textarea
@@ -65,13 +85,8 @@ export function fichaEscola({
                         rows="4"
                         maxlength="5000"
                         class="campo-nova-requisicao"
-                        placeholder="Registre a sua requisição à SEMED aqui!"
+                        placeholder="Descreva a solicitação"
                     ></textarea>
-
-                    <small class="ajuda-nova-requisicao">
-                        Descreva de forma clara o problema
-                        ou a necessidade da escola.
-                    </small>
 
                     <button
                         type="button"

@@ -1,5 +1,5 @@
 // ==========================================
-// REQUISICOES
+// REQUISIÇÕES BIDIRECIONAIS
 // ==========================================
 
 import {
@@ -22,7 +22,32 @@ import {
 } from "./templates/ui.js";
 
 
+let escolasDisponiveisCache = null;
 let setoresDisponiveisCache = null;
+
+
+function carregarCssFluxo() {
+    if (
+        document.querySelector(
+            'link[data-requisicoes-fluxo="1"]'
+        )
+    ) {
+        return;
+    }
+
+    const link =
+        document.createElement("link");
+
+    link.rel = "stylesheet";
+    link.href =
+        "/static/css/requisicoes_fluxo.css";
+    link.dataset.requisicoesFluxo = "1";
+
+    document.head.appendChild(link);
+}
+
+
+carregarCssFluxo();
 
 
 function obterPerfilUsuario() {
@@ -35,13 +60,41 @@ function obterPerfilUsuario() {
 }
 
 
-export function usuarioPodeResponder() {
-    return obterPerfilUsuario() === "SETOR";
+export function usuarioPodeCadastrarRequisicao() {
+    return [
+        "DIRETOR",
+        "SETOR"
+    ].includes(
+        obterPerfilUsuario()
+    );
 }
 
 
-export function usuarioPodeCadastrarRequisicao() {
-    return obterPerfilUsuario() === "DIRETOR";
+export function usuarioPodeResponder() {
+    return [
+        "DIRETOR",
+        "SETOR"
+    ].includes(
+        obterPerfilUsuario()
+    );
+}
+
+
+async function carregarEscolasDisponiveis() {
+    if (Array.isArray(escolasDisponiveisCache)) {
+        return escolasDisponiveisCache;
+    }
+
+    const resultado = await apiGet(
+        "/api/requisicoes/escolas-disponiveis"
+    );
+
+    escolasDisponiveisCache =
+        Array.isArray(resultado)
+            ? resultado
+            : [];
+
+    return escolasDisponiveisCache;
 }
 
 
@@ -70,27 +123,26 @@ function rotuloSetor(setor) {
         || `Setor ${setor?.id ?? ""}`
     ).trim();
 
-    const setorPai = String(
+    const superior = String(
         setor?.setor_pai
         || ""
     ).trim();
 
-    if (
-        setorPai
-        && !nome.includes(setorPai)
-    ) {
-        return `${setorPai} — ${nome}`;
-    }
-
-    return nome;
+    return (
+        superior
+        && !nome.includes(superior)
+    )
+        ? `${superior} — ${nome}`
+        : nome;
 }
 
 
-async function preencherSelectSetores(
+async function preencherSelectDestino(
     select,
+    tipo,
     {
-        valorSelecionado = "",
-        textoInicial = "Selecione o setor responsável"
+        excluirId = null,
+        textoInicial = "Selecione o destino"
     } = {}
 ) {
     if (!select) {
@@ -100,111 +152,84 @@ async function preencherSelectSetores(
     select.disabled = true;
     select.innerHTML = `
         <option value="">
-            Carregando setores...
+            Carregando destinos...
         </option>
     `;
 
     try {
-        const setores =
-            await carregarSetoresDisponiveis();
+        const itens = tipo === "SETOR"
+            ? await carregarSetoresDisponiveis()
+            : await carregarEscolasDisponiveis();
+
+        const filtrados = itens.filter(
+            item =>
+                String(item.id)
+                !== String(excluirId ?? "")
+        );
 
         select.innerHTML = "";
 
-        const opcaoInicial =
-            document.createElement(
-                "option"
-            );
+        const inicial =
+            document.createElement("option");
 
-        opcaoInicial.value = "";
-        opcaoInicial.textContent =
-            setores.length > 0
-                ? textoInicial
-                : "Nenhum setor disponível";
+        inicial.value = "";
+        inicial.textContent = filtrados.length
+            ? textoInicial
+            : "Nenhum destino disponível";
 
-        select.appendChild(
-            opcaoInicial
-        );
+        select.appendChild(inicial);
 
-        setores.forEach(
-            setor => {
-                const option =
-                    document.createElement(
-                        "option"
+        filtrados.forEach(
+            item => {
+                const opcao =
+                    document.createElement("option");
+
+                opcao.value = String(item.id);
+                opcao.textContent = tipo === "SETOR"
+                    ? rotuloSetor(item)
+                    : String(
+                        item.nome
+                        || `Escola ${item.id}`
                     );
 
-                option.value =
-                    String(setor.id);
-
-                option.textContent =
-                    rotuloSetor(setor);
-
-                select.appendChild(
-                    option
-                );
+                select.appendChild(opcao);
             }
         );
 
         select.disabled =
-            setores.length === 0;
+            filtrados.length === 0;
 
-        if (
-            valorSelecionado
-            && setores.some(
-                setor =>
-                    String(setor.id)
-                    === String(valorSelecionado)
-            )
-        ) {
-            select.value =
-                String(valorSelecionado);
-        }
+        return filtrados.length > 0;
 
-        return setores.length > 0;
-
-    } catch (errorSetores) {
+    } catch (falha) {
         console.error(
-            "Erro ao carregar setores:",
-            errorSetores
+            "Erro ao preencher destinos:",
+            falha
         );
 
         select.innerHTML = `
             <option value="">
-                Erro ao carregar setores
+                Erro ao carregar destinos
             </option>
         `;
-
         select.disabled = true;
         return false;
     }
 }
 
 
-export async function prepararFormularioRequisicaoEscola(
-    escolaId
-) {
-    const select =
-        document.getElementById(
-            `setor-nova-req-${escolaId}`
-        );
-
-    return preencherSelectSetores(
-        select
-    );
-}
-
-
 function notificarAlteracaoRequisicoes(
-    escolaId = null
+    entidadeId = null
 ) {
     window.dispatchEvent(
         new CustomEvent(
             "websig:requisicao-alterada",
             {
                 detail: {
-                    escolaId:
-                        escolaId === null
+                    entidadeId:
+                        entidadeId === null
                             ? null
-                            : String(escolaId)
+                            : String(entidadeId)
                 }
             }
         )
@@ -212,194 +237,204 @@ function notificarAlteracaoRequisicoes(
 }
 
 
-export async function carregarRequisicoes(
-    escolaId
+async function prepararControlesHistorico(
+    container,
+    recarregar
 ) {
-    const statusEl =
-        document.getElementById(
-            "status-requisicoes"
+    const selects = [
+        ...container.querySelectorAll(
+            "[data-select-encaminhamento='1']"
+        )
+    ];
+
+    await Promise.all(
+        selects.map(
+            select => preencherSelectDestino(
+                select,
+                "ESCOLA",
+                {
+                    textoInicial:
+                        "Selecione a escola"
+                }
+            )
+        )
+    );
+
+    container
+        .querySelectorAll(
+            ".btn-responder"
+        )
+        .forEach(
+            botao => {
+                botao.addEventListener(
+                    "click",
+                    () => responderRequisicao(
+                        Number(botao.dataset.id),
+                        recarregar,
+                        botao
+                    )
+                );
+            }
         );
 
-    if (!statusEl) {
+    container
+        .querySelectorAll(
+            ".btn-encaminhar-requisicao"
+        )
+        .forEach(
+            botao => {
+                botao.addEventListener(
+                    "click",
+                    () => encaminharRequisicao(
+                        Number(botao.dataset.id),
+                        recarregar,
+                        botao
+                    )
+                );
+            }
+        );
+}
+
+
+async function carregarHistorico(
+    url,
+    container,
+    recarregar
+) {
+    if (!container) {
         return;
     }
 
-    statusEl.innerHTML = carregando(
+    container.innerHTML = carregando(
         "Buscando requisições..."
     );
 
     try {
-        const data = await apiGet(
-            `/api/escolas/${
-                encodeURIComponent(escolaId)
-            }/requisicoes`
-        );
+        const dados = await apiGet(url);
 
-        if (
-            !Array.isArray(data)
-            || data.length === 0
-        ) {
-            statusEl.innerHTML =
+        if (!Array.isArray(dados)) {
+            container.innerHTML =
                 historicoVazio();
             return;
         }
 
-        const pendentes = data.filter(
-            requisicao =>
-                requisicao.status
-                === "Pendente"
+        container.innerHTML =
+            historicoRequisicoes(dados);
+
+        await prepararControlesHistorico(
+            container,
+            recarregar
         );
 
-        const respondidas = data.filter(
-            requisicao =>
-                requisicao.status
-                === "Respondida"
-        );
-
-        const podeResponder =
-            usuarioPodeResponder();
-
-        statusEl.innerHTML =
-            historicoRequisicoes(
-                pendentes,
-                respondidas,
-                podeResponder
-            );
-
-        if (podeResponder) {
-            statusEl
-                .querySelectorAll(
-                    ".btn-responder"
-                )
-                .forEach(
-                    botao => {
-                        botao.addEventListener(
-                            "click",
-                            () => {
-                                responderRequisicao(
-                                    botao.dataset.id,
-                                    escolaId
-                                );
-                            }
-                        );
-                    }
-                );
-        }
-
-    } catch (errorCarregamento) {
+    } catch (falha) {
         console.error(
             "Erro ao carregar requisições:",
-            errorCarregamento
+            falha
         );
 
-        statusEl.innerHTML = erro(
-            errorCarregamento.message
+        container.innerHTML = erro(
+            falha.message
             || "Erro ao carregar histórico."
         );
     }
 }
 
 
-export async function enviarRequisicao(
-    escolaId,
-    setorId,
-    descricao
+export async function carregarRequisicoes(
+    escolaId
 ) {
-    if (!usuarioPodeCadastrarRequisicao()) {
-        throw new Error(
-            "Somente diretores podem cadastrar requisições."
+    const container =
+        document.getElementById(
+            "status-requisicoes"
         );
+
+    const recarregar = () =>
+        carregarRequisicoes(escolaId);
+
+    return carregarHistorico(
+        `/api/escolas/${
+            encodeURIComponent(escolaId)
+        }/requisicoes`,
+        container,
+        recarregar
+    );
+}
+
+
+export async function carregarRequisicoesSetor(
+    setorId
+) {
+    const container =
+        document.getElementById(
+            `status-requisicoes-setor-${setorId}`
+        );
+
+    const recarregar = () =>
+        carregarRequisicoesSetor(setorId);
+
+    return carregarHistorico(
+        `/api/setores/${
+            encodeURIComponent(setorId)
+        }/requisicoes`,
+        container,
+        recarregar
+    );
+}
+
+
+export async function prepararFormularioRequisicaoEscola(
+    escolaId
+) {
+    const selectTipo =
+        document.getElementById(
+            `tipo-destino-nova-req-${escolaId}`
+        );
+
+    const selectDestino =
+        document.getElementById(
+            `destino-nova-req-${escolaId}`
+        );
+
+    if (!selectTipo || !selectDestino) {
+        return;
     }
 
-    const idEscola = String(
-        escolaId ?? ""
-    ).trim();
-
-    const idSetor = String(
-        setorId ?? ""
-    ).trim();
-
-    const texto = String(
-        descricao ?? ""
-    ).trim();
-
-    if (!idEscola) {
-        throw new Error(
-            "Selecione uma escola."
+    const atualizar = () =>
+        preencherSelectDestino(
+            selectDestino,
+            selectTipo.value,
+            {
+                excluirId:
+                    selectTipo.value === "ESCOLA"
+                        ? escolaId
+                        : null,
+                textoInicial:
+                    selectTipo.value === "ESCOLA"
+                        ? "Selecione a escola"
+                        : "Selecione o setor"
+            }
         );
-    }
 
-    if (!idSetor) {
-        throw new Error(
-            "Selecione o setor responsável."
-        );
-    }
-
-    if (!texto) {
-        throw new Error(
-            "Digite uma descrição."
-        );
-    }
-
-    if (texto.length > 5000) {
-        throw new Error(
-            "A descrição não pode ultrapassar 5.000 caracteres."
-        );
-    }
-
-    const escolaIdNumerico =
-        Number(idEscola);
-
-    const setorIdNumerico =
-        Number(idSetor);
-
-    if (
-        !Number.isInteger(escolaIdNumerico)
-        || escolaIdNumerico <= 0
-    ) {
-        throw new Error(
-            "A escola informada é inválida."
-        );
-    }
-
-    if (
-        !Number.isInteger(setorIdNumerico)
-        || setorIdNumerico <= 0
-    ) {
-        throw new Error(
-            "O setor informado é inválido."
-        );
-    }
-
-    const resultado = await apiPost(
-        "/api/requisicoes",
-        {
-            escola_id: escolaIdNumerico,
-            setor_id: setorIdNumerico,
-            descricao: texto
-        }
+    selectTipo.addEventListener(
+        "change",
+        atualizar
     );
 
-    await tocarBip("nova");
-    notificarAlteracaoRequisicoes(idEscola);
-
-    return resultado;
+    await atualizar();
 }
 
 
 export async function novaRequisicao(
     escolaId
 ) {
-    if (!usuarioPodeCadastrarRequisicao()) {
-        alert(
-            "Somente diretores podem cadastrar requisições."
-        );
-        return;
-    }
-
-    const selectSetor =
+    const selectTipo =
         document.getElementById(
-            `setor-nova-req-${escolaId}`
+            `tipo-destino-nova-req-${escolaId}`
+        );
+
+    const selectDestino =
+        document.getElementById(
+            `destino-nova-req-${escolaId}`
         );
 
     const textarea =
@@ -412,51 +447,62 @@ export async function novaRequisicao(
             `btn-nova-req-${escolaId}`
         );
 
-    if (!selectSetor || !textarea) {
+    const destinoTipo =
+        selectTipo?.value;
+    const destinoId =
+        Number(selectDestino?.value);
+    const descricao =
+        textarea?.value.trim();
+
+    if (!destinoTipo) {
+        alert("Selecione o tipo de destino.");
         return;
     }
 
-    const setorId =
-        selectSetor.value;
-
-    const descricao =
-        textarea.value.trim();
-
-    if (!setorId) {
-        alert(
-            "Selecione o setor responsável."
-        );
-        selectSetor.focus();
+    if (!Number.isInteger(destinoId)) {
+        alert("Selecione o destino.");
         return;
     }
 
     if (!descricao) {
-        alert(
-            "Digite uma descrição."
-        );
-        textarea.focus();
+        alert("Digite uma descrição.");
+        textarea?.focus();
         return;
     }
 
-    const textoOriginalBotao =
+    const textoOriginal =
         botao?.textContent
-        ?? "+ Nova Requisição";
+        || "+ Nova Requisição";
 
     if (botao) {
         botao.disabled = true;
-        botao.textContent =
-            "Salvando...";
+        botao.textContent = "Salvando...";
     }
 
     try {
-        await enviarRequisicao(
-            escolaId,
-            setorId,
-            descricao
+        await apiPost(
+            "/api/requisicoes",
+            {
+                origem_tipo: "ESCOLA",
+                origem_id: Number(escolaId),
+                destino_tipo: destinoTipo,
+                destino_id: destinoId,
+                descricao
+            }
         );
 
-        textarea.value = "";
-        selectSetor.value = "";
+        await tocarBip("nova");
+
+        if (textarea) {
+            textarea.value = "";
+        }
+        if (selectDestino) {
+            selectDestino.value = "";
+        }
+
+        notificarAlteracaoRequisicoes(
+            escolaId
+        );
 
         await carregarRequisicoes(
             escolaId
@@ -466,207 +512,412 @@ export async function novaRequisicao(
             "Requisição cadastrada com sucesso."
         );
 
-    } catch (errorCriacao) {
+    } catch (falha) {
         console.error(
-            "Erro ao salvar requisição:",
-            errorCriacao
+            "Erro ao criar requisição:",
+            falha
         );
-
         alert(
-            errorCriacao.message
+            falha.message
             || "Erro ao salvar requisição."
         );
 
     } finally {
         if (botao) {
             botao.disabled = false;
-            botao.textContent =
-                textoOriginalBotao;
+            botao.textContent = textoOriginal;
         }
+    }
+}
+
+
+export async function prepararFormularioRequisicaoSetor(
+    setorId
+) {
+    const select =
+        document.getElementById(
+            `escola-destino-setor-${setorId}`
+        );
+
+    return preencherSelectDestino(
+        select,
+        "ESCOLA",
+        {
+            textoInicial:
+                "Selecione a escola de destino"
+        }
+    );
+}
+
+
+export async function novaRequisicaoSetor(
+    setorId
+) {
+    const select =
+        document.getElementById(
+            `escola-destino-setor-${setorId}`
+        );
+
+    const textarea =
+        document.getElementById(
+            `texto-nova-req-setor-${setorId}`
+        );
+
+    const botao =
+        document.getElementById(
+            `btn-nova-req-setor-${setorId}`
+        );
+
+    const destinoId =
+        Number(select?.value);
+    const descricao =
+        textarea?.value.trim();
+
+    if (!Number.isInteger(destinoId)) {
+        alert("Selecione a escola de destino.");
+        return;
+    }
+
+    if (!descricao) {
+        alert("Digite uma descrição.");
+        textarea?.focus();
+        return;
+    }
+
+    const textoOriginal =
+        botao?.textContent
+        || "Enviar para escola";
+
+    if (botao) {
+        botao.disabled = true;
+        botao.textContent = "Enviando...";
+    }
+
+    try {
+        await apiPost(
+            "/api/requisicoes",
+            {
+                origem_tipo: "SETOR",
+                origem_id: Number(setorId),
+                destino_tipo: "ESCOLA",
+                destino_id: destinoId,
+                descricao
+            }
+        );
+
+        await tocarBip("nova");
+
+        if (textarea) {
+            textarea.value = "";
+        }
+        if (select) {
+            select.value = "";
+        }
+
+        notificarAlteracaoRequisicoes(
+            setorId
+        );
+
+        await carregarRequisicoesSetor(
+            setorId
+        );
+
+        alert(
+            "Requisição enviada para a escola."
+        );
+
+    } catch (falha) {
+        console.error(
+            "Erro ao enviar requisição do setor:",
+            falha
+        );
+        alert(
+            falha.message
+            || "Erro ao enviar requisição."
+        );
+
+    } finally {
+        if (botao) {
+            botao.disabled = false;
+            botao.textContent = textoOriginal;
+        }
+    }
+}
+
+
+export async function encaminharRequisicao(
+    requisicaoId,
+    recarregar,
+    botaoOrigem = null
+) {
+    const card =
+        botaoOrigem?.closest(
+            ".req-card"
+        );
+
+    const select =
+        card?.querySelector(
+            `[data-select-encaminhamento="1"]`
+        )
+        ?? document.getElementById(
+            `encaminhar-destino-${requisicaoId}`
+        );
+
+    const textarea =
+        card?.querySelector(
+            `#encaminhar-observacao-${requisicaoId}`
+        )
+        ?? document.getElementById(
+            `encaminhar-observacao-${requisicaoId}`
+        );
+
+    const destinoId =
+        Number(select?.value);
+
+    if (!Number.isInteger(destinoId)) {
+        alert("Selecione a escola de destino.");
+        return;
+    }
+
+    try {
+        await apiPost(
+            `/api/requisicoes/${requisicaoId}/encaminhar`,
+            {
+                destino_tipo: "ESCOLA",
+                destino_id: destinoId,
+                observacao:
+                    textarea?.value.trim()
+                    || ""
+            }
+        );
+
+        await tocarBip("nova");
+        notificarAlteracaoRequisicoes();
+
+        await recarregar?.();
+
+        alert(
+            "Requisição encaminhada com sucesso."
+        );
+
+    } catch (falha) {
+        console.error(
+            "Erro ao encaminhar requisição:",
+            falha
+        );
+        alert(
+            falha.message
+            || "Erro ao encaminhar."
+        );
     }
 }
 
 
 export async function responderRequisicao(
-    reqId,
-    escolaId
+    requisicaoId,
+    recarregar,
+    botaoOrigem = null
 ) {
-    if (!usuarioPodeResponder()) {
-        alert(
-            "Somente usuários dos setores podem responder requisições."
+    const card =
+        botaoOrigem?.closest(
+            ".req-card"
         );
-        return;
-    }
-
-    const seletor =
-        CSS.escape(String(reqId));
 
     const textarea =
-        document.querySelector(
-            `.txt-resposta[data-id="${seletor}"]`
+        card?.querySelector(
+            ".txt-resposta"
+        )
+        ?? document.getElementById(
+            `resposta-req-${requisicaoId}`
         );
 
-    if (!textarea) {
-        return;
-    }
-
     const resposta =
-        textarea.value.trim();
+        textarea?.value.trim();
 
     if (!resposta) {
         alert(
             "A resposta não pode ficar vazia."
         );
-        textarea.focus();
+        textarea?.focus();
         return;
-    }
-
-    if (resposta.length > 5000) {
-        alert(
-            "A resposta não pode ultrapassar 5.000 caracteres."
-        );
-        textarea.focus();
-        return;
-    }
-
-    const botao =
-        document.querySelector(
-            `.btn-responder[data-id="${seletor}"]`
-        );
-
-    const textoOriginal =
-        botao?.textContent
-        ?? "Responder e concluir";
-
-    if (botao) {
-        botao.disabled = true;
-        botao.textContent =
-            "Enviando...";
     }
 
     try {
         await apiPost(
-            `/api/requisicoes/${
-                encodeURIComponent(reqId)
-            }/responder`,
-            { resposta }
-        );
-
-        await tocarBip("resposta");
-        notificarAlteracaoRequisicoes(escolaId);
-        await carregarRequisicoes(escolaId);
-
-    } catch (errorResposta) {
-        console.error(
-            "Erro ao responder requisição:",
-            errorResposta
-        );
-
-        alert(
-            errorResposta.message
-            || "Erro ao responder."
-        );
-
-    } finally {
-        if (botao?.isConnected) {
-            botao.disabled = false;
-            botao.textContent =
-                textoOriginal;
-        }
-    }
-}
-
-
-export async function responderRequisicaoGeral(
-    reqId,
-    aoConcluir = null
-) {
-    if (!usuarioPodeResponder()) {
-        alert(
-            "Somente usuários dos setores podem responder requisições."
-        );
-        return;
-    }
-
-    const seletor =
-        CSS.escape(String(reqId));
-
-    const textarea =
-        document.querySelector(
-            `.txt-resposta-geral[data-id="${seletor}"]`
-        );
-
-    if (!textarea) {
-        return;
-    }
-
-    const resposta =
-        textarea.value.trim();
-
-    if (!resposta) {
-        alert(
-            "A resposta não pode ficar vazia."
-        );
-        textarea.focus();
-        return;
-    }
-
-    if (resposta.length > 5000) {
-        alert(
-            "A resposta não pode ultrapassar 5.000 caracteres."
-        );
-        textarea.focus();
-        return;
-    }
-
-    const botao =
-        document.querySelector(
-            `.btn-responder-geral[data-id="${seletor}"]`
-        );
-
-    const textoOriginal =
-        botao?.textContent
-        ?? "Responder e concluir";
-
-    if (botao) {
-        botao.disabled = true;
-        botao.textContent =
-            "Enviando...";
-    }
-
-    try {
-        await apiPost(
-            `/api/requisicoes/${
-                encodeURIComponent(reqId)
-            }/responder`,
+            `/api/requisicoes/${requisicaoId}/responder`,
             { resposta }
         );
 
         await tocarBip("resposta");
         notificarAlteracaoRequisicoes();
 
-        if (typeof aoConcluir === "function") {
-            await aoConcluir();
-        }
-
-    } catch (errorResposta) {
-        console.error(
-            "Erro ao responder requisição:",
-            errorResposta
-        );
+        await recarregar?.();
 
         alert(
-            errorResposta.message
-            || "Erro ao responder."
+            "Requisição respondida com sucesso."
         );
 
-    } finally {
-        if (botao?.isConnected) {
-            botao.disabled = false;
-            botao.textContent =
-                textoOriginal;
-        }
+    } catch (falha) {
+        console.error(
+            "Erro ao responder requisição:",
+            falha
+        );
+        alert(
+            falha.message
+            || "Erro ao responder."
+        );
     }
+}
+
+
+export async function responderRequisicaoGeral(
+    requisicaoId
+) {
+    const textarea =
+        document.getElementById(
+            `resposta-geral-req-${requisicaoId}`
+        );
+
+    const resposta =
+        textarea?.value.trim();
+
+    if (!resposta) {
+        alert(
+            "A resposta não pode ficar vazia."
+        );
+        return;
+    }
+
+    try {
+        await apiPost(
+            `/api/requisicoes/${requisicaoId}/responder`,
+            { resposta }
+        );
+
+        await tocarBip("resposta");
+        notificarAlteracaoRequisicoes();
+
+        const modulo = await import(
+            "./dashboard.js"
+        );
+
+        await modulo.carregarVisaoGeral();
+
+    } catch (falha) {
+        console.error(falha);
+        alert(
+            falha.message
+            || "Erro ao responder."
+        );
+    }
+}
+
+// ==========================================
+// CADASTRO RÁPIDO NA BARRA LATERAL
+// ==========================================
+
+function opcoesSelect(
+    itens,
+    obterRotulo
+) {
+    return itens.map(
+        item => {
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+            option.value =
+                String(item.id);
+
+            option.textContent =
+                obterRotulo(item);
+
+            return option;
+        }
+    );
+}
+
+
+async function carregarOrigensCadastroRapido(
+    perfil
+) {
+    if (perfil === "DIRETOR") {
+        const escolas = await apiGet(
+            "/api/minhas-escolas"
+        );
+
+        return {
+            tipo: "ESCOLA",
+            rotulo: "Escola de origem",
+            itens: Array.isArray(escolas)
+                ? escolas
+                : [],
+            obterRotulo(item) {
+                return String(
+                    item.nome
+                    || `Escola ${item.id}`
+                );
+            }
+        };
+    }
+
+    if (perfil === "SETOR") {
+        const setores = await apiGet(
+            "/api/meus-setores"
+        );
+
+        return {
+            tipo: "SETOR",
+            rotulo: "Setor de origem",
+            itens: Array.isArray(setores)
+                ? setores
+                : [],
+            obterRotulo(item) {
+                return rotuloSetor(item);
+            }
+        };
+    }
+
+    return {
+        tipo: "",
+        rotulo: "Origem",
+        itens: [],
+        obterRotulo() {
+            return "";
+        }
+    };
+}
+
+
+async function atualizarDestinosCadastroRapido({
+    perfil,
+    tipoDestino,
+    origemId,
+    selectDestino
+}) {
+    const tipoEfetivo = perfil === "SETOR"
+        ? "ESCOLA"
+        : tipoDestino;
+
+    const excluirId = (
+        tipoEfetivo === "ESCOLA"
+        && perfil === "DIRETOR"
+    )
+        ? origemId
+        : null;
+
+    return preencherSelectDestino(
+        selectDestino,
+        tipoEfetivo,
+        {
+            excluirId,
+            textoInicial:
+                tipoEfetivo === "SETOR"
+                    ? "Selecione o setor"
+                    : "Selecione a escola"
+        }
+    );
 }
 
 
@@ -691,6 +942,9 @@ export async function inicializarCadastroRapido() {
     if (!painelInfo?.parentNode) {
         return;
     }
+
+    const perfil =
+        obterPerfilUsuario();
 
     const container =
         document.createElement(
@@ -717,41 +971,76 @@ export async function inicializarCadastroRapido() {
             class="form-requisicao-rapida"
             hidden
         >
-            <h4>Nova requisição</h4>
+            <h4>
+                Nova requisição
+            </h4>
 
-            <label for="escola-requisicao-rapida">
-                Escola
+            <label
+                for="origem-requisicao-rapida"
+                id="label-origem-requisicao-rapida"
+            >
+                Origem
             </label>
 
             <select
-                id="escola-requisicao-rapida"
+                id="origem-requisicao-rapida"
                 required
             >
                 <option value="">
-                    Carregando escolas...
+                    Carregando origens...
                 </option>
             </select>
 
-            <label for="setor-requisicao-rapida">
-                Setor responsável
+            ${
+                perfil === "DIRETOR"
+                    ? `
+                        <label
+                            for="tipo-destino-requisicao-rapida"
+                        >
+                            Tipo de destino
+                        </label>
+
+                        <select
+                            id="tipo-destino-requisicao-rapida"
+                            required
+                        >
+                            <option value="SETOR">
+                                Setor da SEMED
+                            </option>
+
+                            <option value="ESCOLA">
+                                Outra escola
+                            </option>
+                        </select>
+                    `
+                    : `
+                        <input
+                            type="hidden"
+                            id="tipo-destino-requisicao-rapida"
+                            value="ESCOLA"
+                        >
+                    `
+            }
+
+            <label
+                for="destino-requisicao-rapida"
+            >
+                Destino
             </label>
 
             <select
-                id="setor-requisicao-rapida"
+                id="destino-requisicao-rapida"
                 required
+                disabled
             >
                 <option value="">
-                    Carregando setores...
+                    Selecione primeiro a origem
                 </option>
             </select>
 
-            <small class="aviso-setores-esqueleto">
-                A requisição ficará disponível apenas
-                para os usuários vinculados ao setor
-                selecionado.
-            </small>
-
-            <label for="descricao-requisicao-rapida">
+            <label
+                for="descricao-requisicao-rapida"
+            >
                 Descrição
             </label>
 
@@ -760,10 +1049,12 @@ export async function inicializarCadastroRapido() {
                 rows="4"
                 maxlength="5000"
                 required
-                placeholder="Descreva a necessidade da escola"
+                placeholder="Descreva a solicitação"
             ></textarea>
 
-            <div class="acoes-requisicao-rapida">
+            <div
+                class="acoes-requisicao-rapida"
+            >
                 <button
                     type="button"
                     id="btn-cancelar-requisicao-rapida"
@@ -788,33 +1079,57 @@ export async function inicializarCadastroRapido() {
         painelInfo
     );
 
-    const botaoAbrir = container.querySelector(
-        "#btn-abrir-requisicao-rapida"
-    );
-    const formulario = container.querySelector(
-        "#form-requisicao-rapida"
-    );
-    const selectEscola = container.querySelector(
-        "#escola-requisicao-rapida"
-    );
-    const selectSetor = container.querySelector(
-        "#setor-requisicao-rapida"
-    );
-    const textarea = container.querySelector(
-        "#descricao-requisicao-rapida"
-    );
-    const botaoCancelar = container.querySelector(
-        "#btn-cancelar-requisicao-rapida"
-    );
-    const botaoSalvar = container.querySelector(
-        "#btn-salvar-requisicao-rapida"
-    );
+    const botaoAbrir =
+        container.querySelector(
+            "#btn-abrir-requisicao-rapida"
+        );
+
+    const formulario =
+        container.querySelector(
+            "#form-requisicao-rapida"
+        );
+
+    const labelOrigem =
+        container.querySelector(
+            "#label-origem-requisicao-rapida"
+        );
+
+    const selectOrigem =
+        container.querySelector(
+            "#origem-requisicao-rapida"
+        );
+
+    const selectTipoDestino =
+        container.querySelector(
+            "#tipo-destino-requisicao-rapida"
+        );
+
+    const selectDestino =
+        container.querySelector(
+            "#destino-requisicao-rapida"
+        );
+
+    const textarea =
+        container.querySelector(
+            "#descricao-requisicao-rapida"
+        );
+
+    const botaoCancelar =
+        container.querySelector(
+            "#btn-cancelar-requisicao-rapida"
+        );
+
+    const botaoSalvar =
+        container.querySelector(
+            "#btn-salvar-requisicao-rapida"
+        );
 
     if (
         !botaoAbrir
         || !formulario
-        || !selectEscola
-        || !selectSetor
+        || !selectOrigem
+        || !selectTipoDestino
+        || !selectDestino
         || !textarea
         || !botaoCancelar
         || !botaoSalvar
@@ -828,7 +1143,7 @@ export async function inicializarCadastroRapido() {
         () => {
             botaoAbrir.hidden = true;
             formulario.hidden = false;
-            selectEscola.focus();
+            selectOrigem.focus();
         }
     );
 
@@ -838,17 +1153,31 @@ export async function inicializarCadastroRapido() {
             formulario.hidden = true;
             botaoAbrir.hidden = false;
             formulario.reset();
+
+            selectDestino.innerHTML = `
+                <option value="">
+                    Selecione primeiro a origem
+                </option>
+            `;
+
+            selectDestino.disabled = true;
         }
     );
 
-    let possuiEscolas = false;
+    let configuracaoOrigem;
 
     try {
-        const escolas = await apiGet(
-            "/api/minhas-escolas"
-        );
+        configuracaoOrigem =
+            await carregarOrigensCadastroRapido(
+                perfil
+            );
 
-        selectEscola.innerHTML = "";
+        if (labelOrigem) {
+            labelOrigem.textContent =
+                configuracaoOrigem.rotulo;
+        }
+
+        selectOrigem.innerHTML = "";
 
         const opcaoInicial =
             document.createElement(
@@ -858,88 +1187,132 @@ export async function inicializarCadastroRapido() {
         opcaoInicial.value = "";
 
         if (
-            !Array.isArray(escolas)
-            || escolas.length === 0
+            configuracaoOrigem
+                .itens
+                .length === 0
         ) {
             opcaoInicial.textContent =
-                "Nenhuma escola vinculada";
-            selectEscola.appendChild(
-                opcaoInicial
-            );
-            selectEscola.disabled = true;
-        } else {
-            possuiEscolas = true;
-            opcaoInicial.textContent =
-                "Selecione uma escola";
-            selectEscola.appendChild(
+                "Nenhuma origem vinculada";
+
+            selectOrigem.appendChild(
                 opcaoInicial
             );
 
-            escolas.forEach(
-                escola => {
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
-                    option.value =
-                        String(escola.id);
-                    option.textContent =
-                        escola.nome
-                        || `Escola ${escola.id}`;
-                    selectEscola.appendChild(
-                        option
-                    );
-                }
-            );
+            selectOrigem.disabled = true;
+            botaoSalvar.disabled = true;
+            return;
         }
 
-    } catch (errorEscolas) {
-        console.error(
-            "Erro ao carregar escolas do diretor:",
-            errorEscolas
+        opcaoInicial.textContent =
+            "Selecione a origem";
+
+        selectOrigem.appendChild(
+            opcaoInicial
         );
-        selectEscola.innerHTML = `
+
+        selectOrigem.append(
+            ...opcoesSelect(
+                configuracaoOrigem.itens,
+                configuracaoOrigem
+                    .obterRotulo
+            )
+        );
+
+    } catch (falhaOrigens) {
+        console.error(
+            "Erro ao carregar origens:",
+            falhaOrigens
+        );
+
+        selectOrigem.innerHTML = `
             <option value="">
-                Erro ao carregar escolas
+                Erro ao carregar origens
             </option>
         `;
-        selectEscola.disabled = true;
+
+        selectOrigem.disabled = true;
+        botaoSalvar.disabled = true;
+        return;
     }
 
-    const possuiSetores =
-        await preencherSelectSetores(
-            selectSetor
-        );
+    const atualizarDestinos = async () => {
+        const origemId =
+            selectOrigem.value;
 
-    botaoSalvar.disabled =
-        !possuiEscolas
-        || !possuiSetores;
+        if (!origemId) {
+            selectDestino.innerHTML = `
+                <option value="">
+                    Selecione primeiro a origem
+                </option>
+            `;
+
+            selectDestino.disabled = true;
+            return;
+        }
+
+        await atualizarDestinosCadastroRapido({
+            perfil,
+            tipoDestino:
+                selectTipoDestino.value,
+            origemId,
+            selectDestino
+        });
+    };
+
+    selectOrigem.addEventListener(
+        "change",
+        atualizarDestinos
+    );
+
+    selectTipoDestino.addEventListener(
+        "change",
+        atualizarDestinos
+    );
 
     formulario.addEventListener(
         "submit",
         async evento => {
             evento.preventDefault();
 
-            const escolaId =
-                selectEscola.value;
-            const setorId =
-                selectSetor.value;
+            const origemId =
+                Number(selectOrigem.value);
+
+            const destinoTipo =
+                perfil === "SETOR"
+                    ? "ESCOLA"
+                    : selectTipoDestino.value;
+
+            const destinoId =
+                Number(selectDestino.value);
+
             const descricao =
                 textarea.value.trim();
 
-            if (!escolaId) {
+            if (!Number.isInteger(origemId)) {
                 alert(
-                    "Selecione uma escola."
+                    "Selecione a origem."
                 );
-                selectEscola.focus();
+
+                selectOrigem.focus();
                 return;
             }
 
-            if (!setorId) {
+            if (
+                !["ESCOLA", "SETOR"]
+                    .includes(destinoTipo)
+            ) {
                 alert(
-                    "Selecione o setor responsável."
+                    "Selecione o tipo de destino."
                 );
-                selectSetor.focus();
+                return;
+            }
+
+            if (!Number.isInteger(destinoId)) {
+                alert(
+                    "Selecione o destino."
+                );
+
+                selectDestino.focus();
                 return;
             }
 
@@ -947,6 +1320,7 @@ export async function inicializarCadastroRapido() {
                 alert(
                     "Digite a descrição da requisição."
                 );
+
                 textarea.focus();
                 return;
             }
@@ -959,32 +1333,51 @@ export async function inicializarCadastroRapido() {
                 "Salvando...";
 
             try {
-                await enviarRequisicao(
-                    escolaId,
-                    setorId,
-                    descricao
+                await apiPost(
+                    "/api/requisicoes",
+                    {
+                        origem_tipo:
+                            configuracaoOrigem.tipo,
+                        origem_id:
+                            origemId,
+                        destino_tipo:
+                            destinoTipo,
+                        destino_id:
+                            destinoId,
+                        descricao
+                    }
                 );
+
+                await tocarBip("nova");
 
                 formulario.reset();
                 formulario.hidden = true;
                 botaoAbrir.hidden = false;
 
-                await carregarRequisicoes(
-                    escolaId
+                selectDestino.innerHTML = `
+                    <option value="">
+                        Selecione primeiro a origem
+                    </option>
+                `;
+
+                selectDestino.disabled = true;
+
+                notificarAlteracaoRequisicoes(
+                    origemId
                 );
 
                 alert(
                     "Requisição cadastrada com sucesso."
                 );
 
-            } catch (errorCriacao) {
+            } catch (falhaCadastro) {
                 console.error(
                     "Erro no cadastro rápido:",
-                    errorCriacao
+                    falhaCadastro
                 );
 
                 alert(
-                    errorCriacao.message
+                    falhaCadastro.message
                     || "Não foi possível cadastrar a requisição."
                 );
 
@@ -996,3 +1389,4 @@ export async function inicializarCadastroRapido() {
         }
     );
 }
+
