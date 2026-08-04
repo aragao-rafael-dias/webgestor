@@ -3,7 +3,11 @@
 # PONTO DE ENTRADA DA APLICAÇÃO
 # ==========================================
 
+from __future__ import annotations
+
 from datetime import timezone
+from importlib import import_module
+from importlib.util import find_spec
 from zoneinfo import ZoneInfo
 
 import click
@@ -11,6 +15,7 @@ import click
 from flask import (
     Flask,
     flash,
+    g,
     jsonify,
     redirect,
     request,
@@ -38,23 +43,22 @@ from routes.home import home_bp
 from routes.memorial import memorial_bp
 from routes.requisicoes import requisicoes_bp
 from routes.rotas import rotas_bp
+from routes.semdu import semdu_bp
 from routes.setores import setores_bp
-from routes.busca_mapa import busca_mapa_bp
-from routes.rotas_pcd import (rotas_pcd_bp)
 
-# ==========================================
-# CRIAÇÃO DA APLICAÇÃO
-# ==========================================
+from servicos.acessos_modulos import (
+    MODULO_SEMDU,
+    MODULO_SEMED,
+    UsuarioContextual,
+    obter_acesso_modulo,
+)
+
 
 app = Flask(__name__)
 
 app.config.from_object(
     Config
 )
-
-# ==========================================
-# BANCO DE DADOS
-# ==========================================
 
 db.init_app(
     app
@@ -74,11 +78,6 @@ fuso_local = ZoneInfo(
     "data_hora_local"
 )
 def data_hora_local(valor):
-    """
-    Converte um horário UTC para o
-    fuso configurado na aplicação.
-    """
-
     if valor is None:
         return "Nunca acessou"
 
@@ -97,7 +96,7 @@ def data_hora_local(valor):
 
 
 # ==========================================
-# FILTRO DAS MIGRAÇÕES
+# FLASK-MIGRATE
 # ==========================================
 
 def incluir_nome_na_migracao(
@@ -105,12 +104,10 @@ def incluir_nome_na_migracao(
     type_,
     parent_names,
 ):
-    """
-    Permite que o Alembic examine somente
-    o schema e as tabelas pertencentes
-    à aplicação WebSIG.
-    """
-
+    # As camadas do schema semdu são geridas
+    # diretamente no PostgreSQL/PostGIS.
+    # O Alembic continua cuidando somente
+    # dos modelos ORM do schema semed.
     if type_ == "schema":
         return name == "semed"
 
@@ -126,10 +123,6 @@ def incluir_nome_na_migracao(
 
     return True
 
-
-# ==========================================
-# FLASK-MIGRATE
-# ==========================================
 
 migrate = Migrate(
     app,
@@ -167,17 +160,14 @@ login_manager.login_message_category = (
 )
 
 
-# ==========================================
-# CARREGAMENTO DO USUÁRIO
-# ==========================================
-
 @login_manager.user_loader
-def carregar_usuario(usuario_id):
+def carregar_usuario(
+    usuario_id,
+):
     try:
         id_convertido = int(
             usuario_id
         )
-
     except (
         TypeError,
         ValueError,
@@ -189,47 +179,41 @@ def carregar_usuario(usuario_id):
         id_convertido,
     )
 
-    if usuario is None:
+    if (
+        usuario is None
+        or not usuario.ativo
+    ):
         return None
 
-    if not usuario.ativo:
-        return None
+    return UsuarioContextual(
+        usuario
+    )
 
-    return usuario
-
-
-# ==========================================
-# ACESSO NÃO AUTORIZADO
-# ==========================================
 
 @login_manager.unauthorized_handler
 def usuario_nao_autorizado():
-    """
-    APIs recebem erro JSON 401.
-
-    Páginas normais são redirecionadas
-    para a tela de login.
-    """
-
     if request.path.startswith(
         "/api/"
     ):
-        return jsonify({
-            "sucesso": False,
-            "erro": (
-                "Autenticação necessária."
-            ),
-        }), 401
+        return jsonify(
+            {
+                "sucesso": False,
+                "erro": (
+                    "Autenticação necessária."
+                ),
+            }
+        ), 401
 
     flash(
         "Faça login para acessar o sistema.",
         "aviso",
     )
 
-    if request.query_string:
-        destino = request.full_path
-    else:
-        destino = request.path
+    destino = (
+        request.full_path
+        if request.query_string
+        else request.path
+    )
 
     return redirect(
         url_for(
@@ -240,30 +224,56 @@ def usuario_nao_autorizado():
 
 
 # ==========================================
-# ROTAS PÚBLICAS
+# PROTEÇÃO GLOBAL E MÓDULO DA REQUISIÇÃO
 # ==========================================
 
 ENDPOINTS_PUBLICOS = {
     "auth.login",
+    "semdu.login_compativel",
+    "static",
+}
+
+ENDPOINTS_SEM_MODULO = {
+    "auth.login",
+    "auth.logout",
+    "home.seletor_modulos",
+    "home.home",
+    "home.entrar_modulo",
+    "semdu.login_compativel",
     "static",
 }
 
 
-# ==========================================
-# PROTEÇÃO GLOBAL
-# ==========================================
+def identificar_modulo_requisicao():
+    endpoint = request.endpoint
+
+    if (
+        endpoint is None
+        or endpoint in ENDPOINTS_SEM_MODULO
+    ):
+        return None
+
+    if (
+        request.path == "/semdu"
+        or request.path.startswith(
+            "/semdu/"
+        )
+        or request.path.startswith(
+            "/api/semdu/"
+        )
+    ):
+        return MODULO_SEMDU
+
+    return MODULO_SEMED
+
 
 @app.before_request
-def exigir_autenticacao():
-    """
-    Bloqueia toda a aplicação por padrão.
-
-    Somente os endpoints declarados em
-    ENDPOINTS_PUBLICOS podem ser acessados
-    sem login.
-    """
-
+def preparar_acesso_requisicao():
     endpoint = request.endpoint
+
+    g.modulo_requisicao = (
+        identificar_modulo_requisicao()
+    )
 
     if endpoint is None:
         return None
@@ -274,11 +284,48 @@ def exigir_autenticacao():
     if not current_user.is_authenticated:
         return login_manager.unauthorized()
 
-    return None
+    modulo = g.modulo_requisicao
+
+    if modulo is None:
+        return None
+
+    acesso = obter_acesso_modulo(
+        current_user,
+        modulo,
+    )
+
+    if acesso is not None:
+        g.acesso_modulo = acesso
+        return None
+
+    mensagem = (
+        "Seu usuário não possui acesso "
+        f"ao módulo {modulo}."
+    )
+
+    if request.path.startswith(
+        "/api/"
+    ):
+        return jsonify(
+            {
+                "sucesso": False,
+                "erro": mensagem,
+                "modulo": modulo,
+            }
+        ), 403
+
+    flash(
+        mensagem,
+        "erro",
+    )
+
+    return redirect(
+        url_for("home.seletor_modulos")
+    )
 
 
 # ==========================================
-# BLUEPRINTS
+# BLUEPRINTS PRINCIPAIS
 # ==========================================
 
 app.register_blueprint(
@@ -314,49 +361,115 @@ app.register_blueprint(
 )
 
 app.register_blueprint(
-    busca_mapa_bp
+    semdu_bp
 )
 
-app.register_blueprint(
-    rotas_pcd_bp
-)
-
-from comandos.rotas_geojson import (
-    registrar_comandos_rotas_geojson,
-)
-
-from comandos.setores import (
-    registrar_comandos_setores,
-)
-
-registrar_comandos_setores(
-    app
-)
-
-from comandos.memoriais import (
-    registrar_comandos_memoriais,
-)
-
-registrar_comandos_memoriais(
-    app
-)
-
-registrar_comandos_rotas_geojson(
-    app
-)
 
 # ==========================================
-# COMANDOS ADMINISTRATIVOS
+# COMPLEMENTOS OPCIONAIS JÁ USADOS NA SEMED
+# ==========================================
+
+def registrar_blueprint_opcional(
+    modulo_importacao: str,
+    nome_atributo: str,
+) -> None:
+    if find_spec(
+        modulo_importacao
+    ) is None:
+        return
+
+    modulo = import_module(
+        modulo_importacao
+    )
+
+    blueprint = getattr(
+        modulo,
+        nome_atributo,
+    )
+
+    app.register_blueprint(
+        blueprint
+    )
+
+
+registrar_blueprint_opcional(
+    "routes.busca_mapa",
+    "busca_mapa_bp",
+)
+
+registrar_blueprint_opcional(
+    "routes.rotas_pcd",
+    "rotas_pcd_bp",
+)
+
+
+# ==========================================
+# COMANDOS
+# ==========================================
+
+def registrar_comando(
+    modulo_importacao: str,
+    nome_funcao: str,
+    *,
+    obrigatorio: bool = False,
+) -> None:
+    if find_spec(
+        modulo_importacao
+    ) is None:
+        if obrigatorio:
+            raise RuntimeError(
+                (
+                    "Módulo obrigatório não encontrado: "
+                    f"{modulo_importacao}"
+                )
+            )
+        return
+
+    modulo = import_module(
+        modulo_importacao
+    )
+
+    funcao = getattr(
+        modulo,
+        nome_funcao,
+    )
+
+    funcao(
+        app
+    )
+
+
+registrar_comando(
+    "comandos.setores",
+    "registrar_comandos_setores",
+    obrigatorio=True,
+)
+
+registrar_comando(
+    "comandos.modulos",
+    "registrar_comandos_modulos",
+    obrigatorio=True,
+)
+
+registrar_comando(
+    "comandos.memoriais",
+    "registrar_comandos_memoriais",
+)
+
+registrar_comando(
+    "comandos.rotas_geojson",
+    "registrar_comandos_rotas_geojson",
+)
+
+
+# ==========================================
+# CRIAÇÃO DO PRIMEIRO ADMINISTRADOR
 # ==========================================
 
 @app.cli.command(
     "criar-admin"
 )
 def criar_admin():
-    """
-    Cria um administrador do WebSIG.
-    """
-
     click.echo(
         "\nCriação do administrador do WebSIG\n"
     )
@@ -376,14 +489,12 @@ def criar_admin():
         )
     )
 
-    email_informado = click.prompt(
-        "E-mail",
-        default="",
-        show_default=False,
-    )
-
     email = Usuario.normalizar_email(
-        email_informado
+        click.prompt(
+            "E-mail",
+            default="",
+            show_default=False,
+        )
     )
 
     senha = click.prompt(
@@ -396,9 +507,7 @@ def criar_admin():
 
     usuario_existente = (
         db.session.execute(
-            db.select(
-                Usuario
-            ).where(
+            db.select(Usuario).where(
                 Usuario.login == login
             )
         )
@@ -407,16 +516,13 @@ def criar_admin():
 
     if usuario_existente:
         raise click.ClickException(
-            "Já existe um usuário "
-            "com esse login."
+            "Já existe um usuário com esse login."
         )
 
     if email:
         email_existente = (
             db.session.execute(
-                db.select(
-                    Usuario
-                ).where(
+                db.select(Usuario).where(
                     Usuario.email == email
                 )
             )
@@ -425,8 +531,7 @@ def criar_admin():
 
         if email_existente:
             raise click.ClickException(
-                "Já existe um usuário "
-                "com esse e-mail."
+                "Já existe um usuário com esse e-mail."
             )
 
     administrador = Usuario(
@@ -448,24 +553,18 @@ def criar_admin():
         )
 
         db.session.commit()
-
     except ValueError as erro:
         db.session.rollback()
-
         raise click.ClickException(
             str(erro)
         ) from erro
-
     except Exception as erro:
         db.session.rollback()
-
         app.logger.exception(
             "Erro ao criar administrador."
         )
-
         raise click.ClickException(
-            "Não foi possível criar "
-            "o administrador."
+            "Não foi possível criar o administrador."
         ) from erro
 
     click.echo(
@@ -476,10 +575,6 @@ def criar_admin():
         f"Login: {administrador.login}"
     )
 
-
-# ==========================================
-# EXECUÇÃO LOCAL
-# ==========================================
 
 if __name__ == "__main__":
     app.run(

@@ -1,6 +1,6 @@
-from urllib.parse import urlsplit
-from datetime import datetime, timezone
+from __future__ import annotations
 
+from datetime import datetime, timezone
 from flask import (
     Blueprint,
     abort,
@@ -8,6 +8,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 from flask_login import (
@@ -17,7 +18,7 @@ from flask_login import (
     logout_user,
 )
 from flask_wtf import FlaskForm
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from wtforms import (
     PasswordField,
@@ -37,10 +38,6 @@ auth_bp = Blueprint(
     __name__,
 )
 
-
-# ==========================================
-# FORMULÁRIOS
-# ==========================================
 
 class LoginForm(FlaskForm):
     login = StringField(
@@ -86,50 +83,13 @@ class LogoutForm(FlaskForm):
     )
 
 
-# ==========================================
-# FUNÇÕES AUXILIARES
-# ==========================================
-
-def destino_interno_seguro(destino):
-    """
-    Aceita somente caminhos internos da aplicação.
-
-    Exemplos aceitos:
-    /
-    /mapa
-    /painel?pagina=2
-
-    URLs externas são recusadas.
-    """
-
-    if not destino:
-        return False
-
-    partes = urlsplit(destino)
-
-    return (
-        partes.scheme == ""
-        and partes.netloc == ""
-        and destino.startswith("/")
-        and not destino.startswith("//")
-    )
-
 
 @auth_bp.app_context_processor
 def disponibilizar_formulario_logout():
-    """
-    Disponibiliza logout_form automaticamente
-    para os templates da aplicação.
-    """
-
     return {
         "logout_form": LogoutForm()
     }
 
-
-# ==========================================
-# LOGIN
-# ==========================================
 
 @auth_bp.route(
     "/login",
@@ -137,7 +97,9 @@ def disponibilizar_formulario_logout():
 )
 def login():
     if current_user.is_authenticated:
-        return redirect("/")
+        return redirect(
+            url_for("home.seletor_modulos")
+        )
 
     formulario = LoginForm()
 
@@ -171,7 +133,6 @@ def login():
                 "Login ou senha inválidos.",
                 "erro",
             )
-
             return render_template(
                 "login.html",
                 form=formulario,
@@ -179,14 +140,11 @@ def login():
 
         try:
             usuario.ultimo_acesso_em = datetime.now(
-            timezone.utc
+                timezone.utc
             )
-
             db.session.commit()
-
         except SQLAlchemyError:
             db.session.rollback()
-
             flash(
                 (
                     "Não foi possível iniciar a "
@@ -194,7 +152,6 @@ def login():
                 ),
                 "erro",
             )
-
             return render_template(
                 "login.html",
                 form=formulario,
@@ -205,24 +162,23 @@ def login():
             remember=False,
         )
 
-        destino = request.args.get(
-            "next"
+        session.pop(
+            "modulo_atual",
+            None,
         )
 
-        if destino_interno_seguro(destino):
-            return redirect(destino)
-
-        return redirect("/")
+        # A primeira página autenticada é sempre
+        # o seletor. A troca de secretaria ocorre
+        # somente depois da escolha explícita.
+        return redirect(
+            url_for("home.seletor_modulos")
+        )
 
     return render_template(
         "login.html",
         form=formulario,
     )
 
-
-# ==========================================
-# LOGOUT
-# ==========================================
 
 @auth_bp.post("/logout")
 @login_required
@@ -231,6 +187,11 @@ def logout():
 
     if not formulario.validate_on_submit():
         abort(400)
+
+    session.pop(
+        "modulo_atual",
+        None,
+    )
 
     logout_user()
 

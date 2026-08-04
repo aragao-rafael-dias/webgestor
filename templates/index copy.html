@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>SEMED — WebSIG</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+
+<body
+    data-perfil-usuario="{{ current_user.perfil }}"
+    data-modulo="SEMED"
+>
+    <header class="websig-header">
+        <div class="websig-identidade">
+            <div class="websig-logo">
+                S
+            </div>
+
+            <div class="websig-titulos">
+                <h1>WebSIG — SEMED</h1>
+                <p>
+                    Secretaria Municipal de Educação de Lagarto
+                </p>
+            </div>
+        </div>
+
+        <details class="websig-menu-usuario">
+            <summary class="websig-menu-resumo">
+                <span class="websig-status"></span>
+
+                <span class="websig-menu-identificacao">
+                    <strong>{{ current_user.nome }}</strong>
+                    <small>
+                        {{ current_user.perfil }}
+                        {% if acesso_modulo.origem == 'GERAL' %}
+                            · acesso geral
+                        {% endif %}
+                    </small>
+                </span>
+
+                <span class="websig-menu-seta">⌄</span>
+            </summary>
+
+            <div class="websig-menu-lista">
+                <a href="{{ url_for('home.seletor_modulos') }}">
+                    Trocar módulo
+                </a>
+
+                {% if current_user.perfil == 'ADMIN' %}
+                    <a href="{{ url_for('admin.listar_usuarios') }}">
+                        Administração de usuários
+                    </a>
+                {% endif %}
+
+                <div class="websig-menu-divisor"></div>
+
+                <form
+                    method="post"
+                    action="{{ url_for('auth.logout') }}"
+                >
+                    {{ logout_form.hidden_tag() }}
+
+                    <button type="submit">
+                        Sair do sistema
+                    </button>
+                </form>
+            </div>
+        </details>
+    </header>
+
+    <main id="container">
+        <aside id="sidebar">
+            <h2>Gestão da rede</h2>
+            <hr>
+
+            <div id="info-escola">
+                <p>
+                    Carregando informações do WebSIG...
+                </p>
+            </div>
+        </aside>
+
+        <div
+            id="map"
+            aria-label="Mapa das escolas e rotas da SEMED"
+        ></div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script
+        type="module"
+        src="{{ url_for('static', filename='js/mapa.js') }}"
+    ></script>
+</body>
+</html>

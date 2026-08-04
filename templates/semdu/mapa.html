@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <meta
+        name="theme-color"
+        content="#232c61"
+    >
+    <title>SEMDU — WebSIG Municipal</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/semdu_mapa.css') }}"
+    >
+
+    <script
+        defer
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    ></script>
+
+    <script
+        defer
+        src="{{ url_for('static', filename='js/semdu_mapa.js') }}"
+    ></script>
+</head>
+
+<body
+    data-modulo="SEMDU"
+    data-perfil="{{ acesso.perfil }}"
+>
+    <header class="semdu-topo">
+        <div class="semdu-identidade">
+            <button
+                type="button"
+                id="abrir-painel"
+                class="semdu-menu-mobile"
+                aria-label="Abrir catálogo de camadas"
+                aria-controls="semdu-painel"
+                aria-expanded="false"
+            >
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <a
+                class="semdu-logo"
+                href="{{ url_for('semdu.mapa') }}"
+            >
+                <strong>SEMDU</strong>
+                <span>
+                    <b>WebSIG Municipal</b>
+                    <small>
+                        Secretaria Municipal de Desenvolvimento
+                    </small>
+                </span>
+            </a>
+        </div>
+
+        <nav class="semdu-acoes" aria-label="Ações do usuário">
+            <span class="semdu-perfil">
+                {{ acesso.perfil }}
+                {% if acesso.origem == 'GERAL' %}
+                    <em>Geral</em>
+                {% endif %}
+            </span>
+
+            <span class="semdu-usuario">
+                {{ current_user.nome }}
+            </span>
+
+            <a
+                href="{{ url_for('home.seletor_modulos') }}"
+                class="semdu-trocar"
+            >
+                Trocar módulo
+            </a>
+
+            <form
+                method="post"
+                action="{{ url_for('auth.logout') }}"
+            >
+                {{ logout_form.hidden_tag() }}
+                <button
+                    type="submit"
+                    class="semdu-sair"
+                >
+                    Sair
+                </button>
+            </form>
+        </nav>
+    </header>
+
+    <main class="semdu-aplicacao">
+        <aside
+            id="semdu-painel"
+            class="semdu-painel"
+            aria-label="Catálogo de camadas"
+        >
+            <div class="semdu-painel-cabecalho">
+                <div>
+                    <span>SCHEMA SEMDU</span>
+                    <h1>Camadas geográficas</h1>
+                </div>
+
+                <button
+                    type="button"
+                    id="fechar-painel"
+                    class="semdu-fechar-mobile"
+                    aria-label="Fechar catálogo"
+                >
+                    ×
+                </button>
+            </div>
+
+            <p class="semdu-painel-introducao">
+                Selecione as camadas que serão exibidas.
+                O catálogo é atualizado diretamente pelo PostGIS.
+            </p>
+
+            <label
+                class="semdu-busca"
+                for="buscar-camada"
+            >
+                <span>Buscar camada</span>
+                <div>
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                    >
+                        <circle cx="11" cy="11" r="7"/>
+                        <path d="m20 20-4-4"/>
+                    </svg>
+
+                    <input
+                        type="search"
+                        id="buscar-camada"
+                        placeholder="Nome da tabela..."
+                        autocomplete="off"
+                    >
+                </div>
+            </label>
+
+            <div
+                id="status-catalogo"
+                class="semdu-status"
+                role="status"
+                aria-live="polite"
+            >
+                Preparando o mapa...
+            </div>
+
+            <div
+                id="lista-camadas"
+                class="semdu-lista-camadas"
+            ></div>
+
+            <section class="semdu-informacoes">
+                <h2>Informações</h2>
+
+                <dl>
+                    <div>
+                        <dt>Banco</dt>
+                        <dd>SEMDU</dd>
+                    </div>
+                    <div>
+                        <dt>Schema</dt>
+                        <dd>semdu</dd>
+                    </div>
+                    <div>
+                        <dt>Saída cartográfica</dt>
+                        <dd>EPSG:4326</dd>
+                    </div>
+                    <div>
+                        <dt>Limite por camada</dt>
+                        <dd>5.000 feições</dd>
+                    </div>
+                </dl>
+            </section>
+        </aside>
+
+        <section class="semdu-mapa-area">
+            <div
+                id="map"
+                aria-label="Mapa geográfico da SEMDU"
+            ></div>
+
+            <div
+                id="mapa-carregamento"
+                class="semdu-mapa-carregamento"
+                hidden
+            >
+                <span></span>
+                <strong>Carregando camadas...</strong>
+            </div>
+
+            <div
+                id="mapa-aviso"
+                class="semdu-mapa-aviso"
+                hidden
+                role="alert"
+            ></div>
+
+            <div
+                id="coordenadas"
+                class="semdu-coordenadas"
+            >
+                Lat — · Lon —
+            </div>
+
+            <div class="semdu-marca-mapa">
+                <strong>SEMDU</strong>
+                <span>Gestão territorial</span>
+            </div>
+        </section>
+    </main>
+
+    <div
+        id="fundo-painel"
+        class="semdu-fundo-painel"
+        hidden
+    ></div>
+</body>
+</html>

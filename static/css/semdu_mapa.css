@@ -1,0 +1,715 @@
+:root {
+    --semdu: #232c61;
+    --semdu-escuro: #171e45;
+    --semdu-claro: #eef0fa;
+    --semdu-acento: #7f8bd4;
+    --branco: #ffffff;
+    --texto: #1d2438;
+    --texto-suave: #687087;
+    --fundo: #edf0f5;
+    --borda: #d9deea;
+    --topo-altura: 72px;
+    --painel-largura: 350px;
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+body {
+    color: var(--texto);
+    background: var(--fundo);
+}
+
+button,
+input {
+    font: inherit;
+}
+
+.semdu-topo {
+    position: relative;
+    z-index: 2000;
+    height: var(--topo-altura);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    padding: 0 20px;
+    color: #ffffff;
+    background:
+        linear-gradient(
+            115deg,
+            var(--semdu-escuro),
+            var(--semdu) 58%,
+            #303b7a
+        );
+    border-bottom: 3px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 5px 22px rgba(17, 24, 63, 0.34);
+}
+
+.semdu-identidade {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.semdu-logo {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.semdu-logo > strong {
+    min-width: 70px;
+    min-height: 43px;
+    display: grid;
+    place-items: center;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.88rem;
+    letter-spacing: 0.14em;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.semdu-logo > span {
+    min-width: 0;
+    display: grid;
+}
+
+.semdu-logo b {
+    font-size: 1rem;
+}
+
+.semdu-logo small {
+    margin-top: 2px;
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.67rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-acoes {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
+}
+
+.semdu-acoes form {
+    margin: 0;
+}
+
+.semdu-perfil {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 9px;
+    border-radius: 999px;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.13);
+    font-size: 0.64rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+}
+
+.semdu-perfil em {
+    padding: 2px 5px;
+    border-radius: 999px;
+    color: var(--semdu);
+    background: #ffffff;
+    font-size: 0.53rem;
+    font-style: normal;
+}
+
+.semdu-usuario {
+    max-width: 230px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 750;
+}
+
+.semdu-trocar,
+.semdu-sair {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 9px;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.09);
+    text-decoration: none;
+    font-weight: 750;
+    cursor: pointer;
+    transition:
+        background-color 0.18s ease,
+        transform 0.18s ease;
+}
+
+.semdu-trocar:hover,
+.semdu-sair:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.17);
+}
+
+.semdu-aplicacao {
+    height: calc(100vh - var(--topo-altura));
+    display: grid;
+    grid-template-columns:
+        var(--painel-largura)
+        minmax(0, 1fr);
+}
+
+.semdu-painel {
+    position: relative;
+    z-index: 1000;
+    min-width: 0;
+    height: 100%;
+    padding: 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-right: 1px solid var(--borda);
+    background: #ffffff;
+    box-shadow: 4px 0 18px rgba(25, 31, 64, 0.1);
+}
+
+.semdu-painel::-webkit-scrollbar {
+    width: 8px;
+}
+
+.semdu-painel::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #bdc3d4;
+}
+
+.semdu-painel-cabecalho {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.semdu-painel-cabecalho span {
+    color: var(--semdu);
+    font-size: 0.64rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+}
+
+.semdu-painel-cabecalho h1 {
+    margin: 5px 0 0;
+    font-size: 1.35rem;
+    line-height: 1.16;
+    letter-spacing: -0.025em;
+}
+
+.semdu-painel-introducao {
+    margin: 14px 0 18px;
+    color: var(--texto-suave);
+    font-size: 0.78rem;
+    line-height: 1.55;
+}
+
+.semdu-busca {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 13px;
+    color: #3c4560;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.semdu-busca > div {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 11px;
+    border: 1px solid #cdd3e1;
+    border-radius: 10px;
+    background: #ffffff;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.semdu-busca > div:focus-within {
+    border-color: var(--semdu);
+    box-shadow: 0 0 0 4px rgba(35, 44, 97, 0.12);
+}
+
+.semdu-busca svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #70788c;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+}
+
+.semdu-busca input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    color: var(--texto);
+    background: transparent;
+}
+
+.semdu-busca input::placeholder {
+    color: #9ca3b2;
+}
+
+.semdu-status {
+    margin-bottom: 13px;
+    padding: 10px 11px;
+    border: 1px solid #dde1ea;
+    border-radius: 9px;
+    color: #626b81;
+    background: #f4f6f9;
+    font-size: 0.71rem;
+    line-height: 1.42;
+}
+
+.semdu-status.sucesso {
+    border-color: #c4dfcd;
+    color: #1b6438;
+    background: #eef8f1;
+}
+
+.semdu-status.erro {
+    border-color: #eac8c5;
+    color: #8b2b22;
+    background: #fff3f2;
+}
+
+.semdu-status.carregando::before {
+    content: "";
+    width: 11px;
+    height: 11px;
+    display: inline-block;
+    margin-right: 7px;
+    border: 2px solid #c3c8d7;
+    border-top-color: var(--semdu);
+    border-radius: 50%;
+    vertical-align: -2px;
+    animation: semdu-girar 0.75s linear infinite;
+}
+
+.semdu-lista-camadas {
+    display: grid;
+    gap: 8px;
+}
+
+.semdu-camada {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px;
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    background: #ffffff;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        background-color 0.18s ease,
+        transform 0.18s ease;
+}
+
+.semdu-camada:hover {
+    transform: translateY(-1px);
+    border-color: #b8bfd2;
+    background: #fafbfe;
+}
+
+.semdu-camada.ativa {
+    border-color: rgba(35, 44, 97, 0.38);
+    background: var(--semdu-claro);
+}
+
+.semdu-camada input {
+    width: 17px;
+    height: 17px;
+    margin: 2px 0 0;
+    accent-color: var(--semdu);
+}
+
+.semdu-camada-texto {
+    min-width: 0;
+    display: grid;
+}
+
+.semdu-camada-texto strong {
+    overflow: hidden;
+    color: #2d354c;
+    font-size: 0.79rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-camada-texto small {
+    margin-top: 3px;
+    overflow: hidden;
+    color: #7a8295;
+    font-size: 0.64rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-camada-meta {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.semdu-camada-meta span {
+    padding: 3px 5px;
+    border-radius: 5px;
+    color: #566078;
+    background: #eef0f5;
+    font-size: 0.56rem;
+    font-weight: 800;
+}
+
+.semdu-lista-vazia {
+    padding: 22px 12px;
+    border: 1px dashed #cbd0dc;
+    border-radius: 10px;
+    color: #7b8395;
+    background: #fafbfc;
+    font-size: 0.76rem;
+    text-align: center;
+}
+
+.semdu-informacoes {
+    margin-top: 18px;
+    padding: 15px;
+    border: 1px solid var(--borda);
+    border-radius: 11px;
+    background: #f8f9fc;
+}
+
+.semdu-informacoes h2 {
+    margin: 0 0 11px;
+    color: var(--semdu);
+    font-size: 0.83rem;
+}
+
+.semdu-informacoes dl {
+    margin: 0;
+    display: grid;
+    gap: 7px;
+}
+
+.semdu-informacoes dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    font-size: 0.67rem;
+}
+
+.semdu-informacoes dt {
+    color: #777f91;
+}
+
+.semdu-informacoes dd {
+    margin: 0;
+    color: #38405a;
+    font-weight: 800;
+    text-align: right;
+}
+
+.semdu-mapa-area {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: #dde2ec;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    background: #dde2ec;
+}
+
+.leaflet-container {
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        sans-serif;
+}
+
+.leaflet-control-zoom a {
+    color: var(--semdu);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+    border-radius: 10px;
+}
+
+.semdu-popup {
+    min-width: 230px;
+    max-width: 360px;
+}
+
+.semdu-popup h3 {
+    margin: 0 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--semdu);
+    color: var(--semdu);
+    font-size: 0.94rem;
+}
+
+.semdu-popup dl {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.semdu-popup dl div {
+    display: grid;
+    grid-template-columns: minmax(70px, 0.42fr) minmax(0, 1fr);
+    gap: 8px;
+    font-size: 0.69rem;
+}
+
+.semdu-popup dt {
+    color: #737b8e;
+    font-weight: 750;
+}
+
+.semdu-popup dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: #2c344b;
+}
+
+.semdu-coordenadas,
+.semdu-marca-mapa {
+    position: absolute;
+    z-index: 700;
+    bottom: 12px;
+    padding: 7px 10px;
+    border: 1px solid rgba(56, 65, 92, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 6px 20px rgba(27, 34, 64, 0.12);
+    backdrop-filter: blur(9px);
+}
+
+.semdu-coordenadas {
+    right: 12px;
+    color: #4d566c;
+    font-size: 0.65rem;
+}
+
+.semdu-marca-mapa {
+    left: 12px;
+    display: grid;
+}
+
+.semdu-marca-mapa strong {
+    color: var(--semdu);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+}
+
+.semdu-marca-mapa span {
+    margin-top: 1px;
+    color: #7c8496;
+    font-size: 0.55rem;
+}
+
+.semdu-mapa-carregamento {
+    position: absolute;
+    z-index: 800;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    border: 1px solid rgba(35, 44, 97, 0.2);
+    border-radius: 999px;
+    color: var(--semdu);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 28px rgba(28, 35, 77, 0.16);
+    font-size: 0.7rem;
+}
+
+.semdu-mapa-carregamento span {
+    width: 15px;
+    height: 15px;
+    border: 2px solid #cbd0e1;
+    border-top-color: var(--semdu);
+    border-radius: 50%;
+    animation: semdu-girar 0.75s linear infinite;
+}
+
+.semdu-mapa-aviso {
+    position: absolute;
+    z-index: 850;
+    top: 14px;
+    right: 14px;
+    max-width: 370px;
+    padding: 11px 13px;
+    border: 1px solid #e6c4c0;
+    border-radius: 9px;
+    color: #8d2b21;
+    background: rgba(255, 245, 244, 0.97);
+    box-shadow: 0 8px 25px rgba(88, 28, 23, 0.14);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.semdu-menu-mobile,
+.semdu-fechar-mobile {
+    display: none;
+}
+
+.semdu-fundo-painel {
+    position: fixed;
+    z-index: 1900;
+    inset: var(--topo-altura) 0 0;
+    background: rgba(12, 17, 41, 0.45);
+    backdrop-filter: blur(2px);
+}
+
+@keyframes semdu-girar {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 820px) {
+    :root {
+        --topo-altura: 66px;
+    }
+
+    .semdu-topo {
+        padding: 0 12px;
+    }
+
+    .semdu-aplicacao {
+        display: block;
+    }
+
+    .semdu-painel {
+        position: fixed;
+        z-index: 1950;
+        top: var(--topo-altura);
+        bottom: 0;
+        left: 0;
+        width: min(88vw, 370px);
+        height: auto;
+        transform: translateX(-105%);
+        transition: transform 0.24s ease;
+    }
+
+    body.painel-aberto .semdu-painel {
+        transform: translateX(0);
+    }
+
+    .semdu-mapa-area {
+        width: 100%;
+        height: 100%;
+    }
+
+    .semdu-menu-mobile {
+        width: 39px;
+        height: 39px;
+        display: grid;
+        place-content: center;
+        gap: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.09);
+        cursor: pointer;
+    }
+
+    .semdu-menu-mobile span {
+        width: 18px;
+        height: 2px;
+        border-radius: 99px;
+        background: #ffffff;
+    }
+
+    .semdu-fechar-mobile {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--borda);
+        border-radius: 9px;
+        color: var(--semdu);
+        background: #ffffff;
+        font-size: 1.35rem;
+        cursor: pointer;
+    }
+
+    .semdu-usuario,
+    .semdu-perfil {
+        display: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .semdu-logo small {
+        display: none;
+    }
+
+    .semdu-logo > strong {
+        min-width: 62px;
+    }
+
+    .semdu-trocar {
+        width: 39px;
+        overflow: hidden;
+        justify-content: center;
+        padding: 0;
+        font-size: 0;
+    }
+
+    .semdu-trocar::before {
+        content: "↔";
+        font-size: 1rem;
+    }
+
+    .semdu-sair {
+        padding: 0 10px;
+    }
+}

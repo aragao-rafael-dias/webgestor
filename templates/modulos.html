@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <meta
+        name="description"
+        content="Seleção de módulos do WebSIG Municipal"
+    >
+    <title>Módulos — WebSIG Municipal</title>
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/modulos.css') }}"
+    >
+    <script
+        defer
+        src="{{ url_for('static', filename='js/modulos.js') }}"
+    ></script>
+</head>
+<body>
+    <header class="modulos-topo">
+        <a
+            class="modulos-marca"
+            href="{{ url_for('home.seletor_modulos') }}"
+            aria-label="Página inicial do WebSIG"
+        >
+            <span class="modulos-marca-simbolo">W</span>
+            <span>
+                <strong>WebSIG Municipal</strong>
+                <small>Prefeitura de Lagarto</small>
+            </span>
+        </a>
+
+        <div class="modulos-usuario">
+            <span>
+                <small>Usuário conectado</small>
+                <strong>{{ current_user.nome }}</strong>
+            </span>
+
+            <form
+                method="post"
+                action="{{ url_for('auth.logout') }}"
+            >
+                {{ logout_form.hidden_tag() }}
+                <button type="submit">
+                    Sair
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <main class="modulos-conteudo">
+        <section class="modulos-apresentacao">
+            <div>
+                <span class="modulos-etiqueta">
+                    AMBIENTE INTEGRADO
+                </span>
+
+                <h1>
+                    Selecione o módulo de trabalho
+                </h1>
+
+                <p>
+                    O mesmo usuário pode possuir perfis diferentes
+                    em cada secretaria. As permissões são conferidas
+                    novamente no servidor ao entrar no módulo.
+                </p>
+            </div>
+
+            <div class="modulos-resumo">
+                <span>{{ modulos|selectattr('disponivel')|list|length }}</span>
+                <small>
+                    módulo(s) disponível(is)
+                </small>
+            </div>
+        </section>
+
+        {% with mensagens =
+            get_flashed_messages(with_categories=true)
+        %}
+            {% if mensagens %}
+                <section
+                    class="modulos-mensagens"
+                    aria-live="polite"
+                >
+                    {% for categoria, mensagem in mensagens %}
+                        <div class="mensagem {{ categoria }}">
+                            {{ mensagem }}
+                        </div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        <section
+            class="modulos-grade"
+            aria-label="Módulos do sistema"
+        >
+            {% for modulo in modulos %}
+                <article
+                    class="
+                        modulo-card
+                        modulo-{{ modulo.codigo|lower }}
+                        {% if not modulo.disponivel %}
+                            modulo-indisponivel
+                        {% endif %}
+                    "
+                    style="--cor-modulo: {{ modulo.cor }};"
+                    data-modulo-card
+                    data-disponivel="{{
+                        'true' if modulo.disponivel else 'false'
+                    }}"
+                >
+                    <div class="modulo-card-topo">
+                        <span class="modulo-sigla">
+                            {{ modulo.sigla }}
+                        </span>
+
+                        {% if modulo.disponivel %}
+                            <span class="modulo-status disponivel">
+                                Disponível
+                            </span>
+                        {% else %}
+                            <span class="modulo-status bloqueado">
+                                Sem acesso
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="modulo-icone" aria-hidden="true">
+                        {% if modulo.codigo == 'SEMED' %}
+                            <svg viewBox="0 0 24 24">
+                                <path d="M4 5.5 12 2l8 3.5v6c0 4.9-3.4 8.8-8 10.5-4.6-1.7-8-5.6-8-10.5v-6Z"/>
+                                <path d="M8 10.5 12 8l4 2.5-4 2.5-4-2.5Z"/>
+                                <path d="M9.5 12v3c1.5.8 3.5.8 5 0v-3"/>
+                            </svg>
+                        {% else %}
+                            <svg viewBox="0 0 24 24">
+                                <path d="M3 20h18"/>
+                                <path d="M5 20V9l4-3v14"/>
+                                <path d="M9 20V4l5 3v13"/>
+                                <path d="M14 20v-8l5-3v11"/>
+                                <path d="M7 11h.01M7 14h.01M7 17h.01M11.5 8h.01M11.5 11h.01M11.5 14h.01M16.5 13h.01M16.5 16h.01"/>
+                            </svg>
+                        {% endif %}
+                    </div>
+
+                    <div class="modulo-texto">
+                        <h2>{{ modulo.titulo }}</h2>
+                        <p>{{ modulo.descricao }}</p>
+                    </div>
+
+                    <div class="modulo-rodape">
+                        {% if modulo.disponivel %}
+                            <div class="modulo-perfil">
+                                <small>Perfil neste módulo</small>
+                                <strong>
+                                    {{ modulo.perfil }}
+                                    {% if modulo.origem == 'GERAL' %}
+                                        <em>Geral</em>
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <form
+                                method="post"
+                                action="{{
+                                    url_for(
+                                        'home.entrar_modulo',
+                                        modulo=modulo.codigo
+                                    )
+                                }}"
+                            >
+                                {{ form.hidden_tag() }}
+
+                                <button
+                                    type="submit"
+                                    class="modulo-entrar"
+                                >
+                                    Entrar no módulo
+                                    <span aria-hidden="true">→</span>
+                                </button>
+                            </form>
+                        {% else %}
+                            <p class="modulo-bloqueio-texto">
+                                Solicite ao administrador um perfil
+                                para este módulo.
+                            </p>
+
+                            <button
+                                type="button"
+                                class="modulo-entrar"
+                                disabled
+                            >
+                                Acesso não concedido
+                            </button>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
+    </main>
+
+    <footer class="modulos-rodape-pagina">
+        <span>
+            Gestão integrada com PostgreSQL e PostGIS
+        </span>
+        <span>
+            Sessão protegida por autenticação centralizada
+        </span>
+    </footer>
+</body>
+</html>
