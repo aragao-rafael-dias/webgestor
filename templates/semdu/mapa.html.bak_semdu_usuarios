@@ -99,23 +99,6 @@
 
             <span class="semdu-usuario">{{ current_user.nome }}</span>
 
-
-
-            {% if acesso.administrador %}
-
-                <a
-
-                    href="{{ url_for('semdu_usuarios.usuarios') }}"
-
-                    class="semdu-trocar"
-
-                >
-
-                    Usuários
-
-                </a>
-
-            {% endif %}
             <a
                 href="{{ url_for('home.seletor_modulos') }}"
                 class="semdu-trocar"

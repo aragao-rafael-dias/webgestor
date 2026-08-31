@@ -46,6 +46,7 @@ from routes.memorial import memorial_bp
 from routes.requisicoes import requisicoes_bp
 from routes.rotas import rotas_bp
 from routes.semdu import semdu_bp
+from routes.semdu_usuarios import semdu_usuarios_bp
 from routes.setores import setores_bp
 
 from servicos.acessos_modulos import (
@@ -376,6 +377,10 @@ app.register_blueprint(
 
 app.register_blueprint(
     semdu_bp
+)
+
+app.register_blueprint(
+    semdu_usuarios_bp
 )
 
 app.register_blueprint(

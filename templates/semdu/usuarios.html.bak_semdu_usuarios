@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#232c61">
+    <title>Usuários SEMDU — WebSIG Municipal</title>
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/semdu_usuarios.css', v='20260831') }}"
+    >
+</head>
+<body>
+    <header class="topo">
+        <a class="marca" href="{{ url_for('semdu.mapa') }}">
+            <strong>SEMDU</strong>
+            <span>
+                <b>Gestão de usuários</b>
+                <small>WebSIG Municipal</small>
+            </span>
+        </a>
+        <nav>
+            <span class="usuario-logado">{{ current_user.nome }}</span>
+            <a href="{{ url_for('semdu.mapa') }}">Voltar ao mapa</a>
+            <a href="{{ url_for('home.seletor_modulos') }}">Trocar módulo</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+                {{ logout_form.hidden_tag() }}
+                <button type="submit">Sair</button>
+            </form>
+        </nav>
+    </header>
+
+    <main class="pagina">
+        <section class="cabecalho-pagina">
+            <div>
+                <span class="rotulo">ADMINISTRAÇÃO / SEMDU</span>
+                <h1>Usuários do módulo</h1>
+                <p>
+                    Crie contas comuns exclusivas da SEMDU e defina as funções
+                    técnicas de Fiscal e Engenharia Ambiental.
+                </p>
+            </div>
+            <div class="resumo">
+                <strong>{{ usuarios|length }}</strong>
+                <span>usuário{{ '' if usuarios|length == 1 else 's' }}</span>
+            </div>
+        </section>
+
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+            {% if mensagens %}
+                <section class="mensagens" aria-live="polite">
+                    {% for categoria, mensagem in mensagens %}
+                        <div class="mensagem {{ categoria }}">{{ mensagem }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        <div class="grade">
+            <section class="cartao formulario-cartao">
+                <header>
+                    <span>NOVA CONTA</span>
+                    <h2>Criar usuário comum</h2>
+                    <p>
+                        A conta receberá acesso <b>SEMDU / USUÁRIO</b> e não
+                        herdará acesso à SEMED.
+                    </p>
+                </header>
+
+                <form method="post" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <label>
+                        <span>Nome completo</span>
+                        {{ form.nome(placeholder="Nome do servidor") }}
+                        {% for erro in form.nome.errors %}<small class="erro">{{ erro }}</small>{% endfor %}
+                    </label>
+
+                    <div class="duas-colunas">
+                        <label>
+                            <span>Login</span>
+                            {{ form.login(placeholder="nome.sobrenome", autocomplete="off") }}
+                            {% for erro in form.login.errors %}<small class="erro">{{ erro }}</small>{% endfor %}
+                        </label>
+                        <label>
+                            <span>E-mail <em>opcional</em></span>
+                            {{ form.email(placeholder="usuario@prefeitura.gov.br", autocomplete="off") }}
+                            {% for erro in form.email.errors %}<small class="erro">{{ erro }}</small>{% endfor %}
+                        </label>
+                    </div>
+
+                    <div class="duas-colunas">
+                        <label>
+                            <span>Senha temporária</span>
+                            {{ form.senha(placeholder="Mínimo de 12 caracteres", autocomplete="new-password") }}
+                            {% for erro in form.senha.errors %}<small class="erro">{{ erro }}</small>{% endfor %}
+                        </label>
+                        <label>
+                            <span>Confirmar senha</span>
+                            {{ form.confirmar_senha(placeholder="Repita a senha", autocomplete="new-password") }}
+                            {% for erro in form.confirmar_senha.errors %}<small class="erro">{{ erro }}</small>{% endfor %}
+                        </label>
+                    </div>
+
+                    <fieldset class="permissoes">
+                        <legend>Funções técnicas</legend>
+                        <label class="opcao-permissao">
+                            {{ form.fiscal() }}
+                            <span>
+                                <strong>Fiscal da SEMDU</strong>
+                                <small>
+                                    Planejamento, edição e autorização no Cadastro
+                                    Territorial conforme as regras já existentes.
+                                </small>
+                            </span>
+                        </label>
+                        <label class="opcao-permissao">
+                            {{ form.eng_ambiental() }}
+                            <span>
+                                <strong>Engenharia Ambiental</strong>
+                                <small>
+                                    Autoriza edição técnica do planejamento arbóreo
+                                    no módulo SEMDU.
+                                </small>
+                            </span>
+                        </label>
+                    </fieldset>
+
+                    {{ form.submit(class_="botao primario") }}
+                </form>
+            </section>
+
+            <section class="cartao lista-cartao">
+                <header>
+                    <span>CONTAS SEMDU</span>
+                    <h2>Usuários cadastrados</h2>
+                    <p>As permissões podem ser alteradas sem recriar a conta.</p>
+                </header>
+
+                {% if usuarios %}
+                    <div class="tabela-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuário</th>
+                                    <th>Funções</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for usuario in usuarios %}
+                                    {% set funcoes = funcoes_por_usuario.get(usuario.id, set()) %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ usuario.nome }}</strong>
+                                            <small>{{ usuario.login }}</small>
+                                            {% if usuario.email %}<small>{{ usuario.email }}</small>{% endif %}
+                                        </td>
+                                        <td>
+                                            <form
+                                                class="form-funcoes"
+                                                method="post"
+                                                action="{{ url_for('semdu_usuarios.atualizar_funcoes', usuario_id=usuario.id) }}"
+                                            >
+                                                <input
+                                                    type="hidden"
+                                                    name="csrf_token"
+                                                    value="{{ acao_form.csrf_token.current_token }}"
+                                                >
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        name="fiscal"
+                                                        value="1"
+                                                        {% if FUNCAO_FISCAL in funcoes %}checked{% endif %}
+                                                    >
+                                                    Fiscal
+                                                </label>
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        name="eng_ambiental"
+                                                        value="1"
+                                                        {% if FUNCAO_ENG_AMBIENTAL in funcoes %}checked{% endif %}
+                                                    >
+                                                    Eng. Ambiental
+                                                </label>
+                                                <button type="submit" class="botao discreto">Salvar</button>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            <span class="status {{ 'ativo' if usuario.ativo else 'inativo' }}">
+                                                {{ 'Ativo' if usuario.ativo else 'Inativo' }}
+                                            </span>
+                                            <small>
+                                                Último acesso:
+                                                {{ usuario.ultimo_acesso_em|data_hora_local }}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <form
+                                                method="post"
+                                                action="{{ url_for('semdu_usuarios.alternar_status', usuario_id=usuario.id) }}"
+                                            >
+                                                <input
+                                                    type="hidden"
+                                                    name="csrf_token"
+                                                    value="{{ acao_form.csrf_token.current_token }}"
+                                                >
+                                                <button
+                                                    type="submit"
+                                                    class="botao {{ 'perigo' if usuario.ativo else 'secundario' }}"
+                                                >
+                                                    {{ 'Desativar' if usuario.ativo else 'Ativar' }}
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="vazio">
+                        <strong>Nenhum usuário comum da SEMDU cadastrado.</strong>
+                        <span>Use o formulário ao lado para criar a primeira conta.</span>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+</body>
+</html>

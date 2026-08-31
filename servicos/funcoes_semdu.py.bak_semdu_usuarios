@@ -10,7 +10,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from models import db
 
 
-FUNCAO_FISCAL = "FISCAL"
 FUNCAO_ENG_AMBIENTAL = "ENG_AMBIENTAL"
 
 

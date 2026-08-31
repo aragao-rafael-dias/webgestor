@@ -316,19 +316,23 @@ class Usuario(UserMixin, db.Model):
     PERFIL_DIRETOR = "DIRETOR"
     PERFIL_SETOR = "SETOR"
     PERFIL_AUDITOR = "AUDITOR"
+    # Marcador legado de conta exclusiva da SEMDU.
+    # O acesso efetivo ao módulo continua em usuarios_acessos_modulos.
+    PERFIL_SEMDU = "SEMDU"
 
     PERFIS_PERMITIDOS = {
         PERFIL_ADMIN,
         PERFIL_DIRETOR,
         PERFIL_SETOR,
         PERFIL_AUDITOR,
+        PERFIL_SEMDU,
     }
 
     __table_args__ = (
         db.CheckConstraint(
             (
                 "perfil IN "
-                "('ADMIN', 'DIRETOR', 'SETOR', 'AUDITOR')"
+                "('ADMIN', 'DIRETOR', 'SETOR', 'AUDITOR', 'SEMDU')"
             ),
             name="ck_usuarios_perfil",
         ),
