@@ -713,3 +713,542 @@ input {
         padding: 0 10px;
     }
 }
+
+
+/* ==========================================================
+   MENU DE CONTEXTO DO MAPA
+   ========================================================== */
+
+.semdu-menu-contexto {
+    position: fixed;
+    z-index: 4200;
+    width: min(330px, calc(100vw - 20px));
+    max-height: min(620px, calc(100vh - 20px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid rgba(35, 44, 97, 0.22);
+    border-radius: 14px;
+    color: var(--texto);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow:
+        0 24px 60px rgba(14, 19, 50, 0.27),
+        0 4px 14px rgba(14, 19, 50, 0.12);
+    opacity: 0;
+    transform:
+        translateY(-5px)
+        scale(0.985);
+    transform-origin: top left;
+    transition:
+        opacity 0.12s ease,
+        transform 0.12s ease;
+    backdrop-filter: blur(16px);
+}
+
+.semdu-menu-contexto.visivel {
+    opacity: 1;
+    transform:
+        translateY(0)
+        scale(1);
+}
+
+.semdu-contexto-cabecalho {
+    display: grid;
+    gap: 4px;
+    padding: 10px 11px 11px;
+    border-bottom: 1px solid #e2e5ee;
+}
+
+.semdu-contexto-cabecalho span {
+    color: var(--semdu);
+    font-size: 0.59rem;
+    font-weight: 950;
+    letter-spacing: 0.11em;
+}
+
+.semdu-contexto-cabecalho strong {
+    color: #555e75;
+    font-family:
+        "Cascadia Mono",
+        "Consolas",
+        monospace;
+    font-size: 0.73rem;
+    font-weight: 700;
+}
+
+.semdu-contexto-grupo {
+    display: grid;
+    gap: 2px;
+    padding: 5px 0;
+}
+
+.semdu-contexto-item {
+    width: 100%;
+    min-height: 52px;
+    display: grid;
+    grid-template-columns:
+        34px
+        minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 9px;
+    color: #30384f;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        color 0.14s ease,
+        background-color 0.14s ease;
+}
+
+.semdu-contexto-item:hover,
+.semdu-contexto-item:focus-visible {
+    color: var(--semdu);
+    background: var(--semdu-claro);
+    outline: 0;
+}
+
+.semdu-contexto-item:disabled {
+    color: #9298a8;
+    background: transparent;
+    cursor: not-allowed;
+}
+
+.semdu-contexto-icone {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    color: var(--semdu);
+    background: #eef0f9;
+}
+
+.semdu-contexto-item:disabled
+.semdu-contexto-icone {
+    color: #8d93a2;
+    background: #f0f1f4;
+}
+
+.semdu-contexto-icone svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.semdu-contexto-texto {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.semdu-contexto-texto strong {
+    overflow: hidden;
+    font-size: 0.76rem;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-contexto-texto small {
+    overflow: hidden;
+    color: #777f92;
+    font-size: 0.62rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-contexto-separador {
+    height: 1px;
+    margin: 2px 7px;
+    background: #e1e4ec;
+}
+
+.semdu-contexto-toast {
+    position: fixed;
+    z-index: 4300;
+    left: 50%;
+    bottom: 28px;
+    max-width: min(440px, calc(100vw - 28px));
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    box-shadow: 0 12px 34px rgba(18, 24, 54, 0.2);
+    font-size: 0.74rem;
+    font-weight: 750;
+    text-align: center;
+}
+
+.semdu-contexto-toast.sucesso {
+    border-color: #bed8c6;
+    color: #155d36;
+    background: rgba(239, 250, 243, 0.98);
+}
+
+.semdu-contexto-toast.erro {
+    border-color: #ebc7c3;
+    color: #8c2b22;
+    background: rgba(255, 244, 242, 0.98);
+}
+
+@media (max-width: 560px) {
+    .semdu-menu-contexto {
+        width: min(310px, calc(100vw - 16px));
+    }
+
+    .semdu-contexto-item {
+        min-height: 50px;
+    }
+}
+
+
+/* ==========================================================
+   PAINEL LATERAL DE INFORMAÇÕES DA FEIÇÃO
+   Substitui os popups das camadas PostGIS.
+   ========================================================== */
+
+.semdu-painel-feicao {
+    position: fixed;
+    z-index: 1980;
+    top: var(--topo-altura);
+    right: 0;
+    bottom: 0;
+    width: min(
+        var(--arborizacao-largura, 390px),
+        calc(100vw - 24px)
+    );
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-left: 1px solid rgba(35, 44, 97, 0.2);
+    color: var(--texto);
+    background: #ffffff;
+    box-shadow:
+        -20px 0 55px rgba(18, 25, 57, 0.22),
+        -3px 0 12px rgba(18, 25, 57, 0.1);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateX(105%);
+    transition:
+        transform 0.22s ease,
+        opacity 0.18s ease,
+        visibility 0.22s;
+}
+
+.semdu-painel-feicao[hidden] {
+    display: none !important;
+}
+
+.semdu-painel-feicao.visivel {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.semdu-feicao-cabecalho {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 18px 15px;
+    color: #ffffff;
+    background:
+        linear-gradient(
+            130deg,
+            var(--semdu-escuro),
+            var(--semdu) 68%,
+            #354184
+        );
+    box-shadow: 0 5px 18px rgba(23, 30, 69, 0.2);
+}
+
+.semdu-feicao-cabecalho span {
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.6rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+}
+
+.semdu-feicao-cabecalho h1 {
+    margin: 4px 0 0;
+    font-size: 1.16rem;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+}
+
+.semdu-feicao-cabecalho button {
+    width: 35px;
+    height: 35px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 9px;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 1.28rem;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        background-color 0.16s ease,
+        transform 0.16s ease;
+}
+
+.semdu-feicao-cabecalho button:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.19);
+}
+
+.semdu-feicao-conteudo {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 15px 16px 24px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.semdu-feicao-conteudo::-webkit-scrollbar {
+    width: 8px;
+}
+
+.semdu-feicao-conteudo::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #bdc3d4;
+}
+
+.semdu-feicao-resumo {
+    padding: 13px;
+    border: 1px solid rgba(35, 44, 97, 0.18);
+    border-radius: 11px;
+    background:
+        linear-gradient(
+            145deg,
+            #f5f6fc,
+            #ffffff
+        );
+}
+
+.semdu-feicao-resumo > span {
+    display: block;
+    color: var(--semdu);
+    font-size: 0.57rem;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+}
+
+.semdu-feicao-resumo > strong {
+    display: block;
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+    color: #252e49;
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+
+.semdu-feicao-meta {
+    margin-top: 9px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.semdu-feicao-meta span {
+    max-width: 100%;
+    padding: 4px 6px;
+    overflow: hidden;
+    border-radius: 6px;
+    color: #515b74;
+    background: #e9ecf4;
+    font-size: 0.57rem;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-feicao-resumo small {
+    display: block;
+    margin-top: 9px;
+    color: #747d91;
+    font-size: 0.62rem;
+    line-height: 1.45;
+}
+
+.semdu-feicao-busca {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+    color: #46506a;
+    font-size: 0.66rem;
+    font-weight: 850;
+}
+
+.semdu-feicao-busca input {
+    width: 100%;
+    min-height: 41px;
+    padding: 0 11px;
+    border: 1px solid #ccd2df;
+    border-radius: 9px;
+    color: #273048;
+    background: #ffffff;
+    outline: none;
+}
+
+.semdu-feicao-busca input:focus {
+    border-color: var(--semdu);
+    box-shadow: 0 0 0 3px rgba(35, 44, 97, 0.12);
+}
+
+.semdu-feicao-contagem {
+    margin: 11px 0 7px;
+    color: #7b8395;
+    font-size: 0.61rem;
+    font-weight: 750;
+}
+
+.semdu-feicao-campos {
+    margin: 0;
+    display: grid;
+    gap: 7px;
+}
+
+.semdu-feicao-campo {
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid #e0e4ec;
+    border-radius: 9px;
+    background: #ffffff;
+    transition:
+        border-color 0.16s ease,
+        background-color 0.16s ease;
+}
+
+.semdu-feicao-campo:hover {
+    border-color: #c7cddd;
+    background: #fafbfe;
+}
+
+.semdu-feicao-campo dt {
+    overflow-wrap: anywhere;
+    color: #747d91;
+    font-size: 0.61rem;
+    font-weight: 850;
+    line-height: 1.3;
+}
+
+.semdu-feicao-campo dd {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    color: #29324a;
+    font-size: 0.72rem;
+    font-weight: 650;
+    line-height: 1.5;
+}
+
+.semdu-feicao-vazio {
+    padding: 22px 13px;
+    border: 1px dashed #ccd2df;
+    border-radius: 9px;
+    color: #747d91;
+    background: #fafbfc;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.semdu-feicao-acoes {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 8px;
+    padding:
+        12px
+        16px
+        calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid #dce1ea;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -8px 22px rgba(26, 34, 66, 0.09);
+    backdrop-filter: blur(10px);
+}
+
+.semdu-feicao-acoes button {
+    min-height: 41px;
+    border-radius: 9px;
+    font-size: 0.68rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.semdu-feicao-acoes button.secundario {
+    border: 1px solid #c6ccda;
+    color: #46506a;
+    background: #ffffff;
+}
+
+.semdu-feicao-acoes button.primario {
+    border: 1px solid var(--semdu);
+    color: #ffffff;
+    background: var(--semdu);
+}
+
+.semdu-feicao-acoes button:hover {
+    filter: brightness(0.98);
+    transform: translateY(-1px);
+}
+
+.semdu-feicao-fundo {
+    position: fixed;
+    z-index: 1970;
+    inset: var(--topo-altura) 0 0;
+    background: rgba(12, 17, 41, 0.46);
+    backdrop-filter: blur(2px);
+}
+
+.semdu-feicao-fundo[hidden] {
+    display: none !important;
+}
+
+@media (min-width: 961px) {
+    .semdu-feicao-fundo {
+        display: none !important;
+    }
+}
+
+@media (max-width: 960px) {
+    .semdu-painel-feicao {
+        width: min(92vw, 420px);
+        min-width: 0;
+    }
+}
+
+@media (max-width: 560px) {
+    .semdu-painel-feicao {
+        width: 100vw;
+        max-width: 100vw;
+        border-left: 0;
+    }
+
+    .semdu-feicao-conteudo {
+        padding:
+            14px
+            14px
+            calc(24px + env(safe-area-inset-bottom));
+    }
+
+    .semdu-feicao-acoes {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+}

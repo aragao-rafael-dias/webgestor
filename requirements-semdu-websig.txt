@@ -1,0 +1,8 @@
+# Dependências do WebSIG avançado da SEMDU.
+# Instale no ambiente virtual do servidor:
+# python -m pip install -r requirements-semdu-websig.txt
+
+rio-tiler>=9.4,<10
+rasterio>=1.4,<2
+numpy>=2.0,<3
+Pillow>=10.4,<13

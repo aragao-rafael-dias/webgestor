@@ -7,6 +7,7 @@
 !.env.example
 .flaskenv
 
+mosaico/
 
 # ==========================================
 # AMBIENTES VIRTUAIS

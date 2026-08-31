@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from models import Usuario, db
 from servicos.acessos_modulos import (
     MODULO_GERAL,
+    MODULO_CADASTRO_TERRITORIAL,
     MODULO_SEMDU,
     MODULO_SEMED,
     PERFIL_ADMIN,
@@ -22,6 +23,7 @@ MODULOS = (
     MODULO_GERAL,
     MODULO_SEMED,
     MODULO_SEMDU,
+    MODULO_CADASTRO_TERRITORIAL,
 )
 
 PERFIS = (

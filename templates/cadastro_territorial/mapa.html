@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <meta name="theme-color" content="#315f72">
+
+    <title>Cadastro Territorial - WebSIG Municipal</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/cadastro_territorial.css') }}"
+    >
+
+    <script
+        defer
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    ></script>
+
+    <script
+        defer
+        src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"
+    ></script>
+
+    <script
+        defer
+        src="{{ url_for('static', filename='js/cadastro_territorial.js') }}"
+    ></script>
+</head>
+
+<body
+    data-fiscal-semdu="{{ 'true' if permissoes.fiscal_semdu else 'false' }}"
+    data-fiscal-semfaz="{{ 'true' if permissoes.fiscal_semfaz else 'false' }}"
+>
+    <header class="ct-topo">
+        <div class="ct-identidade">
+            <button
+                type="button"
+                id="ct-abrir-lista"
+                class="ct-menu-mobile"
+                aria-label="Abrir lista de logradouros"
+            >
+                ☰
+            </button>
+
+            <a
+                href="{{ url_for('cadastro_territorial.mapa') }}"
+                class="ct-logo"
+            >
+                <span>CT</span>
+                <div>
+                    <strong>Cadastro Territorial</strong>
+                    <small>Integração SEMDU + SEMFAZ</small>
+                </div>
+            </a>
+        </div>
+
+        <div class="ct-topo-acoes">
+            {% if permissoes.fiscal_semdu %}
+                <span class="ct-funcao semdu">Fiscal SEMDU</span>
+            {% endif %}
+
+            {% if permissoes.fiscal_semfaz %}
+                <span class="ct-funcao semfaz">Fiscal SEMFAZ</span>
+            {% endif %}
+
+            {% if not permissoes.fiscal_semdu and not permissoes.fiscal_semfaz %}
+                <span class="ct-funcao consulta">Consulta</span>
+            {% endif %}
+
+            <span class="ct-usuario">{{ current_user.nome }}</span>
+
+            <a
+                href="{{ url_for('home.seletor_modulos') }}"
+                class="ct-botao-topo"
+            >
+                Trocar módulo
+            </a>
+
+            <form
+                method="post"
+                action="{{ url_for('auth.logout') }}"
+            >
+                {{ logout_form.hidden_tag() }}
+                <button type="submit" class="ct-botao-topo">Sair</button>
+            </form>
+        </div>
+    </header>
+
+    <main class="ct-aplicacao">
+        <aside id="ct-painel-lista" class="ct-painel-lista">
+            <div class="ct-painel-titulo">
+                <div>
+                    <span>CAMADA COMPARTILHADA</span>
+                    <h1>Logradouros</h1>
+                </div>
+
+                <button
+                    type="button"
+                    id="ct-fechar-lista"
+                    class="ct-fechar-mobile"
+                    aria-label="Fechar lista"
+                >
+                    ×
+                </button>
+            </div>
+
+            <p class="ct-introducao">
+                A SEMDU planeja e autoriza. A SEMFAZ confere e libera o logradouro.
+            </p>
+
+            {% if permissoes.fiscal_semdu %}
+                <div class="ct-acoes-planejamento">
+                    <button
+                        type="button"
+                        id="ct-desenhar"
+                        class="ct-botao-primario"
+                    >
+                        Desenhar rua
+                    </button>
+
+                    <button
+                        type="button"
+                        id="ct-importar"
+                        class="ct-botao-secundario"
+                    >
+                        Importar arquivo
+                    </button>
+                </div>
+            {% endif %}
+
+            <label class="ct-campo-busca">
+                <span>Localizar</span>
+                <input
+                    type="search"
+                    id="ct-busca"
+                    placeholder="Nome, protocolo ou localidade"
+                    autocomplete="off"
+                >
+            </label>
+
+            <div class="ct-filtros">
+                <button type="button" data-filtro-status="TODOS" class="ativo">
+                    Todos
+                </button>
+                <button type="button" data-filtro-status="PLANEJADA_AUTORIZADA">
+                    Aguardando SEMFAZ
+                </button>
+                <button type="button" data-filtro-status="PLANEJADA_LIBERADA">
+                    Liberados
+                </button>
+                {% if permissoes.fiscal_semdu %}
+                    <button type="button" data-filtro-status="RASCUNHO">
+                        Rascunhos
+                    </button>
+                    <button type="button" data-filtro-status="DEVOLVIDA_AJUSTES">
+                        Devolvidos
+                    </button>
+                {% endif %}
+            </div>
+
+            <div
+                id="ct-status"
+                class="ct-status"
+                role="status"
+                aria-live="polite"
+            >
+                Carregando logradouros...
+            </div>
+
+            <div id="ct-lista" class="ct-lista"></div>
+
+            <div class="ct-legenda">
+                <h2>Situação</h2>
+                <span><i class="rascunho"></i>Rascunho</span>
+                <span><i class="autorizada"></i>Planejada - autorizada</span>
+                <span><i class="liberada"></i>Planejada - liberada</span>
+                <span><i class="devolvida"></i>Devolvida para ajustes</span>
+            </div>
+        </aside>
+
+        <section class="ct-mapa-area">
+            <div id="ct-map" aria-label="Mapa do Cadastro Territorial"></div>
+
+            <div id="ct-carregando" class="ct-carregando" hidden>
+                <span></span>
+                <strong>Processando...</strong>
+            </div>
+
+            <div id="ct-toast" class="ct-toast" hidden></div>
+
+            <div id="ct-coordenadas" class="ct-coordenadas">
+                Lat - · Lon -
+            </div>
+        </section>
+
+        <aside id="ct-painel-detalhe" class="ct-painel-detalhe">
+            <div id="ct-vazio" class="ct-vazio">
+                <div class="ct-vazio-icone">⌖</div>
+                <h2>Selecione um logradouro</h2>
+                <p>
+                    Clique em uma linha do mapa ou na lista para visualizar o processo.
+                </p>
+            </div>
+
+            <div
+                id="ct-detalhe-carregando"
+                class="ct-detalhe-carregando"
+                hidden
+            >
+                <span></span>
+                <strong>Carregando processo...</strong>
+                <small>
+                    Consultando memorial, documentos e situação administrativa.
+                </small>
+            </div>
+
+            <div
+                id="ct-detalhe-erro"
+                class="ct-detalhe-erro"
+                hidden
+            >
+                <strong>Não foi possível abrir o processo</strong>
+                <p id="ct-detalhe-erro-mensagem"></p>
+                <button
+                    type="button"
+                    class="ct-botao-secundario"
+                    onclick="location.reload()"
+                >
+                    Recarregar página
+                </button>
+            </div>
+
+            <section id="ct-detalhe" hidden>
+                <div class="ct-detalhe-conteudo">
+                    <div class="ct-detalhe-topo">
+                    <div>
+                        <span id="ct-detalhe-protocolo">-</span>
+                        <h2 id="ct-detalhe-nome">-</h2>
+                    </div>
+                    <button
+                        type="button"
+                        id="ct-fechar-detalhe"
+                        aria-label="Fechar detalhe"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <div id="ct-detalhe-status" class="ct-status-badge"></div>
+
+                <dl id="ct-resumo" class="ct-resumo"></dl>
+
+                <div id="ct-alerta-devolucao" class="ct-alerta-devolucao" hidden></div>
+
+                <details open class="ct-bloco">
+                    <summary>Memorial descritivo</summary>
+                    <p id="ct-memorial"></p>
+                </details>
+
+                <details open class="ct-bloco" id="ct-bloco-documentos">
+                    <summary>Documentos comprobatórios</summary>
+
+                    {% if permissoes.anexar_documentos %}
+                        <form id="ct-form-documento" class="ct-form-documento">
+                            <label>
+                                <span>Tipo</span>
+                                <select name="tipo_documento" required>
+                                    {% for codigo, titulo in tipos_documento.items() %}
+                                        <option value="{{ codigo }}">{{ titulo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+
+                            <label>
+                                <span>Arquivo</span>
+                                <input
+                                    type="file"
+                                    name="arquivo"
+                                    required
+                                    accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.tif,.tiff,.zip,.geojson,.json,.kml,.kmz,.gpkg"
+                                >
+                            </label>
+
+                            <label>
+                                <span>Observação</span>
+                                <input
+                                    type="text"
+                                    name="observacao"
+                                    maxlength="2000"
+                                >
+                            </label>
+
+                            <button type="submit" class="ct-botao-secundario">
+                                Anexar documento
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    <div id="ct-documentos" class="ct-documentos"></div>
+                </details>
+
+                    <details open class="ct-bloco">
+                        <summary>Ofício SEMDU → SEMFAZ</summary>
+                        <div id="ct-oficios" class="ct-oficios"></div>
+                    </details>
+                </div>
+
+                <div
+                    id="ct-acoes-processo"
+                    class="ct-acoes-processo"
+                    hidden
+                ></div>
+            </section>
+        </aside>
+    </main>
+
+    <div id="ct-fundo-mobile" class="ct-fundo-mobile" hidden></div>
+
+    <dialog id="ct-dialog-formulario" class="ct-dialog">
+        <form method="dialog" class="ct-dialog-cabecalho">
+            <div>
+                <span>FISCALIZAÇÃO SEMDU</span>
+                <h2 id="ct-form-titulo">Novo logradouro</h2>
+            </div>
+            <button value="cancel" aria-label="Fechar">×</button>
+        </form>
+
+        <form id="ct-form-logradouro" class="ct-formulario">
+            <input type="hidden" name="id">
+
+            <div class="ct-grid-2">
+                <label>
+                    <span>Tipo de logradouro *</span>
+                    <select name="tipo_logradouro" required>
+                        {% for codigo, titulo in tipos_logradouro.items() %}
+                            <option value="{{ codigo }}">{{ titulo }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label>
+                    <span>Nome proposto *</span>
+                    <input
+                        type="text"
+                        name="nome_proposto"
+                        maxlength="240"
+                        required
+                        placeholder="Ex.: José de Souza"
+                    >
+                </label>
+            </div>
+
+            <div class="ct-grid-2">
+                <label>
+                    <span>Bairro</span>
+                    <input type="text" name="bairro" maxlength="180">
+                </label>
+                <label>
+                    <span>Localidade / povoado</span>
+                    <input type="text" name="localidade" maxlength="180">
+                </label>
+            </div>
+
+            <div class="ct-grid-3">
+                <label>
+                    <span>CEP</span>
+                    <input type="text" name="cep" maxlength="20">
+                </label>
+                <label>
+                    <span>Largura prevista (m)</span>
+                    <input type="number" name="largura_m" min="0.1" step="0.01">
+                </label>
+                <label>
+                    <span>Código municipal</span>
+                    <input type="text" name="codigo_municipal" maxlength="80">
+                </label>
+            </div>
+
+            <label>
+                <span>Descrição / finalidade</span>
+                <textarea name="descricao" rows="3" maxlength="10000"></textarea>
+            </label>
+
+            <label>
+                <span>Memorial descritivo</span>
+                <textarea
+                    name="memorial_descritivo"
+                    rows="8"
+                    maxlength="30000"
+                    placeholder="Deixe vazio para gerar automaticamente a partir da geometria."
+                ></textarea>
+            </label>
+
+            <label>
+                <span>Observações da SEMDU</span>
+                <textarea name="observacoes_semdu" rows="3" maxlength="10000"></textarea>
+            </label>
+
+            <div id="ct-geometria-resumo" class="ct-geometria-resumo"></div>
+
+            <div class="ct-dialog-acoes">
+                <button type="button" id="ct-cancelar-form" class="ct-botao-secundario">
+                    Cancelar
+                </button>
+                <button type="submit" class="ct-botao-primario">
+                    Salvar rascunho
+                </button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="ct-dialog-importar" class="ct-dialog pequeno">
+        <form method="dialog" class="ct-dialog-cabecalho">
+            <div>
+                <span>IMPORTAÇÃO GEOESPACIAL</span>
+                <h2>Importar eixo do logradouro</h2>
+            </div>
+            <button value="cancel" aria-label="Fechar">×</button>
+        </form>
+
+        <form id="ct-form-importar" class="ct-formulario">
+            <p class="ct-ajuda">
+                Formatos: GeoJSON, GPKG, KML, KMZ, GML, GPX, DXF e Shapefile em ZIP.
+                O Shapefile deve conter .shp, .shx, .dbf e .prj.
+            </p>
+
+            <label>
+                <span>Arquivo *</span>
+                <input
+                    type="file"
+                    name="arquivo"
+                    required
+                    accept=".geojson,.json,.gpkg,.kml,.kmz,.gml,.gpx,.dxf,.zip"
+                >
+            </label>
+
+            <div class="ct-dialog-acoes">
+                <button type="button" id="ct-cancelar-import" class="ct-botao-secundario">
+                    Cancelar
+                </button>
+                <button type="submit" class="ct-botao-primario">
+                    Importar
+                </button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="ct-dialog-autorizar" class="ct-dialog">
+        <form method="dialog" class="ct-dialog-cabecalho">
+            <div>
+                <span>OFÍCIO AUTOMÁTICO</span>
+                <h2>Autorizar e encaminhar à SEMFAZ</h2>
+            </div>
+            <button value="cancel" aria-label="Fechar">×</button>
+        </form>
+
+        <form id="ct-form-autorizar" class="ct-formulario">
+            <div class="ct-grid-2">
+                <label>
+                    <span>Destinatário</span>
+                    <input type="text" name="destinatario_nome" maxlength="240">
+                </label>
+                <label>
+                    <span>Cargo do destinatário</span>
+                    <input
+                        type="text"
+                        name="destinatario_cargo"
+                        maxlength="240"
+                        value="Secretário(a) Municipal da Fazenda de Lagarto/SE"
+                    >
+                </label>
+            </div>
+
+            <label>
+                <span>Assunto</span>
+                <input
+                    type="text"
+                    name="assunto"
+                    maxlength="400"
+                    value="Solicitação de liberação de logradouro planejado."
+                >
+            </label>
+
+            <div class="ct-grid-2">
+                <label>
+                    <span>Nome do assinante</span>
+                    <input type="text" name="assinante_nome" maxlength="240">
+                </label>
+                <label>
+                    <span>Cargo do assinante</span>
+                    <input
+                        type="text"
+                        name="assinante_cargo"
+                        maxlength="240"
+                        value="Secretário(a) Municipal do Desenvolvimento Urbano"
+                    >
+                </label>
+            </div>
+
+            <p class="ct-ajuda">
+                O sistema gerará PDF e DOCX, alterará a situação para
+                Planejada - Autorizada e disponibilizará o processo à SEMFAZ.
+            </p>
+
+            <div class="ct-dialog-acoes">
+                <button type="button" id="ct-cancelar-autorizar" class="ct-botao-secundario">
+                    Cancelar
+                </button>
+                <button type="submit" class="ct-botao-primario">
+                    Gerar ofício e autorizar
+                </button>
+            </div>
+        </form>
+    </dialog>
+</body>
+</html>

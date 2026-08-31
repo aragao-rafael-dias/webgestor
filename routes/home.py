@@ -16,6 +16,7 @@ from flask_login import (
 from flask_wtf import FlaskForm
 
 from servicos.acessos_modulos import (
+    MODULO_CADASTRO_TERRITORIAL,
     MODULO_SEMED,
     MODULO_SEMDU,
     listar_modulos_usuario,
@@ -79,6 +80,7 @@ def entrar_modulo(
     destinos = {
         MODULO_SEMED: "home.mapa_semed",
         MODULO_SEMDU: "semdu.mapa",
+        MODULO_CADASTRO_TERRITORIAL: "cadastro_territorial.mapa",
     }
 
     endpoint = destinos.get(

@@ -6,10 +6,12 @@
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
+    <meta name="theme-color" content="#232c61">
     <meta
-        name="theme-color"
-        content="#232c61"
+        name="csrf-token"
+        content="{{ logout_form.csrf_token.current_token }}"
     >
+
     <title>SEMDU — WebSIG Municipal</title>
 
     <link
@@ -19,7 +21,17 @@
 
     <link
         rel="stylesheet"
-        href="{{ url_for('static', filename='css/semdu_mapa.css') }}"
+        href="{{ url_for('static', filename='css/semdu_mapa.css', v='20260806-websig') }}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/semdu_arborizacao.css', v='20260806-websig') }}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/semdu_ferramentas.css', v='20260806-websig') }}"
     >
 
     <script
@@ -29,13 +41,25 @@
 
     <script
         defer
-        src="{{ url_for('static', filename='js/semdu_mapa.js') }}"
+        src="{{ url_for('static', filename='js/semdu_mapa.js', v='20260806-websig') }}"
+    ></script>
+
+    <script
+        defer
+        src="{{ url_for('static', filename='js/semdu_ferramentas.js', v='20260806-websig') }}"
+    ></script>
+
+    <script
+        defer
+        src="{{ url_for('static', filename='js/semdu_arborizacao.js', v='20260806-websig') }}"
     ></script>
 </head>
 
 <body
     data-modulo="SEMDU"
+    data-usuario-id="{{ current_user.id }}"
     data-perfil="{{ acesso.perfil }}"
+    data-pode-editar-arborizacao="{{ 'true' if pode_editar_arborizacao else 'false' }}"
 >
     <header class="semdu-topo">
         <div class="semdu-identidade">
@@ -47,36 +71,33 @@
                 aria-controls="semdu-painel"
                 aria-expanded="false"
             >
-                <span></span>
-                <span></span>
-                <span></span>
+                <span></span><span></span><span></span>
             </button>
 
-            <a
-                class="semdu-logo"
-                href="{{ url_for('semdu.mapa') }}"
-            >
+            <a class="semdu-logo" href="{{ url_for('semdu.mapa') }}">
                 <strong>SEMDU</strong>
                 <span>
                     <b>WebSIG Municipal</b>
-                    <small>
-                        Secretaria Municipal de Desenvolvimento
-                    </small>
+                    <small>Secretaria Municipal de Desenvolvimento</small>
                 </span>
             </a>
         </div>
 
         <nav class="semdu-acoes" aria-label="Ações do usuário">
+            <button
+                type="button"
+                id="abrir-arborizacao-mobile"
+                class="semdu-atalho-arborizacao"
+            >
+                Arborização
+            </button>
+
             <span class="semdu-perfil">
                 {{ acesso.perfil }}
-                {% if acesso.origem == 'GERAL' %}
-                    <em>Geral</em>
-                {% endif %}
+                {% if acesso.origem == 'GERAL' %}<em>Geral</em>{% endif %}
             </span>
 
-            <span class="semdu-usuario">
-                {{ current_user.nome }}
-            </span>
+            <span class="semdu-usuario">{{ current_user.nome }}</span>
 
             <a
                 href="{{ url_for('home.seletor_modulos') }}"
@@ -85,17 +106,9 @@
                 Trocar módulo
             </a>
 
-            <form
-                method="post"
-                action="{{ url_for('auth.logout') }}"
-            >
+            <form method="post" action="{{ url_for('auth.logout') }}">
                 {{ logout_form.hidden_tag() }}
-                <button
-                    type="submit"
-                    class="semdu-sair"
-                >
-                    Sair
-                </button>
+                <button type="submit" class="semdu-sair">Sair</button>
             </form>
         </nav>
     </header>
@@ -111,36 +124,26 @@
                     <span>SCHEMA SEMDU</span>
                     <h1>Camadas geográficas</h1>
                 </div>
-
                 <button
                     type="button"
                     id="fechar-painel"
                     class="semdu-fechar-mobile"
                     aria-label="Fechar catálogo"
-                >
-                    ×
-                </button>
+                >×</button>
             </div>
 
             <p class="semdu-painel-introducao">
-                Selecione as camadas que serão exibidas.
-                O catálogo é atualizado diretamente pelo PostGIS.
+                Selecione as camadas que serão exibidas. O catálogo é
+                atualizado diretamente pelo PostGIS.
             </p>
 
-            <label
-                class="semdu-busca"
-                for="buscar-camada"
-            >
+            <label class="semdu-busca" for="buscar-camada">
                 <span>Buscar camada</span>
                 <div>
-                    <svg
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                    >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
                         <circle cx="11" cy="11" r="7"/>
                         <path d="m20 20-4-4"/>
                     </svg>
-
                     <input
                         type="search"
                         id="buscar-camada"
@@ -155,79 +158,196 @@
                 class="semdu-status"
                 role="status"
                 aria-live="polite"
-            >
-                Preparando o mapa...
-            </div>
+            >Preparando o mapa...</div>
 
-            <div
-                id="lista-camadas"
-                class="semdu-lista-camadas"
-            ></div>
+            <div id="lista-camadas" class="semdu-lista-camadas"></div>
 
             <section class="semdu-informacoes">
                 <h2>Informações</h2>
-
                 <dl>
-                    <div>
-                        <dt>Banco</dt>
-                        <dd>SEMDU</dd>
-                    </div>
-                    <div>
-                        <dt>Schema</dt>
-                        <dd>semdu</dd>
-                    </div>
-                    <div>
-                        <dt>Saída cartográfica</dt>
-                        <dd>EPSG:4326</dd>
-                    </div>
-                    <div>
-                        <dt>Limite por camada</dt>
-                        <dd>5.000 feições</dd>
-                    </div>
+                    <div><dt>Banco</dt><dd>SEMDU</dd></div>
+                    <div><dt>Schema</dt><dd>semdu</dd></div>
+                    <div><dt>Saída cartográfica</dt><dd>EPSG:4326</dd></div>
+                    <div><dt>Limite por camada</dt><dd>5.000 feições</dd></div>
                 </dl>
             </section>
         </aside>
 
         <section class="semdu-mapa-area">
-            <div
-                id="map"
-                aria-label="Mapa geográfico da SEMDU"
-            ></div>
+            <div id="map" aria-label="Mapa geográfico da SEMDU"></div>
 
-            <div
-                id="mapa-carregamento"
-                class="semdu-mapa-carregamento"
-                hidden
-            >
-                <span></span>
-                <strong>Carregando camadas...</strong>
+            <div id="mapa-carregamento" class="semdu-mapa-carregamento" hidden>
+                <span></span><strong>Carregando camadas...</strong>
             </div>
 
-            <div
-                id="mapa-aviso"
-                class="semdu-mapa-aviso"
-                hidden
-                role="alert"
-            ></div>
+            <div id="mapa-aviso" class="semdu-mapa-aviso" hidden role="alert"></div>
 
-            <div
-                id="coordenadas"
-                class="semdu-coordenadas"
-            >
-                Lat — · Lon —
-            </div>
+            <div id="coordenadas" class="semdu-coordenadas">Lat — · Lon —</div>
 
             <div class="semdu-marca-mapa">
-                <strong>SEMDU</strong>
-                <span>Gestão territorial</span>
+                <strong>SEMDU</strong><span>Gestão territorial</span>
             </div>
         </section>
+
+        <aside
+            id="arborizacao-painel"
+            class="arborizacao-painel"
+            aria-label="Planejamento arbóreo"
+        >
+            <header class="arborizacao-cabecalho">
+                <div>
+                    <span>ENGENHARIA AMBIENTAL</span>
+                    <h1>Planejamento Arbóreo</h1>
+                </div>
+                <button
+                    type="button"
+                    id="fechar-arborizacao-mobile"
+                    class="arborizacao-fechar"
+                    aria-label="Fechar planejamento arbóreo"
+                >×</button>
+            </header>
+
+            <div
+                class="arborizacao-permissao {{ 'edicao' if pode_editar_arborizacao else 'leitura' }}"
+            >
+                {% if pode_editar_arborizacao %}
+                    <strong>Eng. Ambiental</strong>
+                    <span>Visualização e edição autorizadas</span>
+                {% else %}
+                    <strong>Consulta pública interna</strong>
+                    <span>Somente a função Eng. Ambiental pode alterar</span>
+                {% endif %}
+            </div>
+
+            <nav class="arborizacao-abas" aria-label="Navegação do planejamento">
+                <button type="button" class="ativa" data-arborizacao-aba="especies">
+                    Espécies
+                </button>
+                <button type="button" data-arborizacao-aba="planejados">
+                    Planejados
+                    <span id="quantidade-planejados">0</span>
+                </button>
+            </nav>
+
+            <section id="aba-especies" class="arborizacao-aba ativa">
+                <div class="arborizacao-filtros">
+                    <input
+                        type="search"
+                        id="buscar-especie"
+                        placeholder="Buscar espécie..."
+                        autocomplete="off"
+                    >
+                    <select id="filtrar-porte" aria-label="Filtrar por porte">
+                        <option value="">Todos os portes</option>
+                        <option value="PEQUENO">Pequeno</option>
+                        <option value="MEDIO">Médio</option>
+                        <option value="GRANDE">Grande</option>
+                    </select>
+                    <select id="filtrar-uso" aria-label="Filtrar por uso">
+                        <option value="">Todos os usos</option>
+                        <option value="CALCADA">Calçada</option>
+                        <option value="PRACA">Praça</option>
+                        <option value="PARQUE">Parque</option>
+                        <option value="JARDIM">Jardim</option>
+                        <option value="CANTEIRO_CENTRAL">Canteiro central</option>
+                        <option value="AVENIDA">Avenida</option>
+                        <option value="ESTACIONAMENTO">Estacionamento</option>
+                        <option value="QUINTAL">Quintal</option>
+                        <option value="AREA_VERDE">Área verde</option>
+                    </select>
+                </div>
+
+                <div id="arborizacao-status" class="arborizacao-status">
+                    Carregando catálogo técnico...
+                </div>
+
+                <div id="especie-detalhe" class="especie-detalhe" hidden></div>
+
+                <div id="lista-especies" class="lista-especies"></div>
+            </section>
+
+            <section id="aba-planejados" class="arborizacao-aba">
+                <div class="arborizacao-camadas-controle">
+                    <h2>Representação cartográfica</h2>
+                    <label><input type="checkbox" id="mostrar-centros" checked> Centros</label>
+                    <label><input type="checkbox" id="mostrar-copa-min" checked> Copa mínima</label>
+                    <label><input type="checkbox" id="mostrar-copa-max" checked> Copa máxima</label>
+                    <label><input type="checkbox" id="mostrar-raiz-min" checked> Raiz mínima</label>
+                    <label><input type="checkbox" id="mostrar-raiz-max" checked> Raiz máxima</label>
+                    <button type="button" id="recarregar-planejamentos">
+                        Atualizar planejamentos
+                    </button>
+                </div>
+
+                <div id="lista-planejados" class="lista-planejados"></div>
+            </section>
+
+            <section id="editor-plantio" class="editor-plantio" hidden>
+                <header>
+                    <div>
+                        <span>EDIÇÃO TÉCNICA</span>
+                        <h2 id="editor-titulo">Novo plantio</h2>
+                    </div>
+                    <button type="button" id="fechar-editor" aria-label="Fechar editor">×</button>
+                </header>
+
+                <div id="editor-especie-resumo"></div>
+
+                <label>
+                    Raio mínimo das raízes (m)
+                    <input type="number" id="raio-raiz-min" min="0" step="0.1" placeholder="Sem dado técnico">
+                </label>
+
+                <label>
+                    Raio máximo das raízes (m)
+                    <input type="number" id="raio-raiz-max" min="0" step="0.1" placeholder="Sem dado técnico">
+                </label>
+
+                <label>
+                    Situação
+                    <select id="status-planejamento">
+                        <option value="RASCUNHO">Rascunho</option>
+                        <option value="EM_ANALISE">Em análise</option>
+                        <option value="APROVADO">Aprovado</option>
+                        <option value="PROGRAMADO">Programado</option>
+                        <option value="PLANTADO">Plantado</option>
+                        <option value="EM_MONITORAMENTO">Em monitoramento</option>
+                    </select>
+                </label>
+
+                <label>
+                    Justificativa técnica
+                    <textarea
+                        id="justificativa-planejamento"
+                        rows="4"
+                        placeholder="Descreva a compatibilidade do local, infraestrutura observada e critérios adotados."
+                    ></textarea>
+                </label>
+
+                <label>
+                    Observações
+                    <textarea id="observacoes-planejamento" rows="2"></textarea>
+                </label>
+
+                <div id="coordenada-preview" class="coordenada-preview">
+                    Clique no mapa para definir o centro do tronco.
+                </div>
+
+                <div id="resultado-validacao" class="resultado-validacao" hidden></div>
+
+                <div class="editor-acoes">
+                    <button type="button" id="cancelar-posicionamento" class="secundario">
+                        Cancelar
+                    </button>
+                    <button type="button" id="salvar-planejamento" disabled>
+                        Salvar planejamento
+                    </button>
+                </div>
+            </section>
+        </aside>
     </main>
 
-    <div
-        id="fundo-painel"
-        class="semdu-fundo-painel"
-        hidden
-    ></div>
+    <div id="fundo-painel" class="semdu-fundo-painel" hidden></div>
+    <div id="fundo-arborizacao" class="arborizacao-fundo" hidden></div>
 </body>
 </html>

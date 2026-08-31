@@ -15,10 +15,12 @@ from models import db
 MODULO_GERAL = "GERAL"
 MODULO_SEMED = "SEMED"
 MODULO_SEMDU = "SEMDU"
+MODULO_CADASTRO_TERRITORIAL = "CADASTRO_TERRITORIAL"
 
 MODULOS_SISTEMA = (
     MODULO_SEMED,
     MODULO_SEMDU,
+    MODULO_CADASTRO_TERRITORIAL,
 )
 
 PERFIL_ADMIN = "ADMIN"
@@ -48,6 +50,11 @@ PERFIS_POR_MODULO = {
         PERFIL_USUARIO,
     },
     MODULO_SEMDU: {
+        PERFIL_ADMIN,
+        PERFIL_AUDITOR,
+        PERFIL_USUARIO,
+    },
+    MODULO_CADASTRO_TERRITORIAL: {
         PERFIL_ADMIN,
         PERFIL_AUDITOR,
         PERFIL_USUARIO,
@@ -238,6 +245,16 @@ def obter_acesso_modulo(
                 origem=modulo,
             )
 
+    # O Cadastro Territorial é um módulo compartilhado.
+    # Todo usuário ativo pode visualizar; as operações de escrita
+    # dependem das funções FISCAL/SEMDU ou FISCAL/SEMFAZ.
+    if modulo == MODULO_CADASTRO_TERRITORIAL:
+        return AcessoModulo(
+            modulo=MODULO_CADASTRO_TERRITORIAL,
+            perfil=PERFIL_USUARIO,
+            origem="COMPARTILHADO",
+        )
+
     # Compatibilidade com os usuários já existentes.
     # Enquanto todos os vínculos não forem migrados,
     # o perfil antigo continua autorizando somente a SEMED.
@@ -322,6 +339,17 @@ def listar_modulos_usuario(
             ),
             "url_endpoint": "semdu.mapa",
             "cor": "#232c61",
+        },
+        {
+            "codigo": MODULO_CADASTRO_TERRITORIAL,
+            "sigla": "CT",
+            "titulo": "Cadastro Territorial",
+            "descricao": (
+                "Fluxo compartilhado entre SEMDU e SEMFAZ para "
+                "planejamento, documentação e liberação de logradouros."
+            ),
+            "url_endpoint": "cadastro_territorial.mapa",
+            "cor": "#315f72",
         },
     )
 

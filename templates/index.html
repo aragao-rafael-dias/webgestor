@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
 
@@ -9,7 +8,7 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>WebSIG - GESTOR (SEMED)</title>
+    <title>SEMED — WebSIG</title>
 
     <link
         rel="stylesheet"
@@ -22,163 +21,91 @@
     >
 </head>
 
-<body data-perfil-usuario="{{ current_user.perfil }}">
-    
-    <!-- ======================================
-         CABEÇALHO
-         ====================================== -->
-
+<body
+    data-perfil-usuario="{{ current_user.perfil }}"
+    data-modulo="SEMED"
+>
     <header class="websig-header">
-
         <div class="websig-identidade">
-
-            <div
-                class="websig-logo"
-                aria-hidden="true"
-            >
-                🗺️
+            <div class="websig-logo">
+                S
             </div>
 
             <div class="websig-titulos">
-                <h1>WebSIG</h1>
-
+                <h1>WebSIG — SEMED</h1>
                 <p>
-                    Gestão do Transporte Escolar — SEMED
+                    Secretaria Municipal de Educação de Lagarto
                 </p>
             </div>
-
         </div>
 
-        {% if current_user.is_authenticated %}
+        <details class="websig-menu-usuario">
+            <summary class="websig-menu-resumo">
+                <span class="websig-status"></span>
 
-                <details class="websig-menu-usuario">
-
-                    <summary class="websig-menu-resumo">
-                    
-                        <span class="websig-status"></span>
-                    
-                        <span class="websig-menu-identificacao">
-                            <strong>
-                                {{ current_user.nome }}
-                            </strong>
-                        
-                            <small>
-                                {{ current_user.perfil|capitalize }}
-                            </small>
-                        </span>
-                    
-                        <span
-                            class="websig-menu-seta"
-                            aria-hidden="true"
-                        >
-                            ▾
-                        </span>
-                    
-                    </summary>
-                
-                    <div class="websig-menu-lista">
-                    
-                        {% if current_user.perfil == "ADMIN" %}
-                    
-                            <a href="{{ url_for('admin.listar_usuarios') }}">
-                                Gerenciar usuários
-                            </a>
-                        
-                            <a href="{{ url_for('admin.novo_usuario') }}">
-                                Novo usuário
-                            </a>
-                        
-                            <div class="websig-menu-divisor"></div>
-                        
+                <span class="websig-menu-identificacao">
+                    <strong>{{ current_user.nome }}</strong>
+                    <small>
+                        {{ current_user.perfil }}
+                        {% if acesso_modulo.origem == 'GERAL' %}
+                            · acesso geral
                         {% endif %}
-                        
-                        <form
-                            method="post"
-                            action="{{ url_for('auth.logout') }}"
-                        >
-                            {{ logout_form.hidden_tag() }}
-                        
-                            <button type="submit">
-                                Sair do sistema
-                            </button>
-                        </form>
-                    
-                    </div>
-                
-                </details>
+                    </small>
+                </span>
+
+                <span class="websig-menu-seta">⌄</span>
+            </summary>
+
+            <div class="websig-menu-lista">
+                <a href="{{ url_for('home.seletor_modulos') }}">
+                    Trocar módulo
+                </a>
+
+                {% if current_user.perfil == 'ADMIN' %}
+                    <a href="{{ url_for('admin.listar_usuarios') }}">
+                        Administração de usuários
+                    </a>
+                {% endif %}
+
+                <div class="websig-menu-divisor"></div>
+
                 <form
                     method="post"
                     action="{{ url_for('auth.logout') }}"
-                    class="websig-logout-form"
                 >
                     {{ logout_form.hidden_tag() }}
 
-                    <button
-                        type="submit"
-                        class="websig-btn-sair"
-                        title="Sair do sistema"
-                    >
-                        <span
-                            class="websig-btn-icone"
-                            aria-hidden="true"
-                        >
-                            ↪
-                        </span>
-
-                        <span>Sair</span>
+                    <button type="submit">
+                        Sair do sistema
                     </button>
-
                 </form>
-
             </div>
-
-        {% endif %}
-
+        </details>
     </header>
 
-
-    <!-- ======================================
-         CONTEÚDO PRINCIPAL
-         ====================================== -->
-
     <main id="container">
-
         <aside id="sidebar">
-
-            <h2>Gestor SEMED</h2>
-
+            <h2>Gestão da rede</h2>
             <hr>
 
             <div id="info-escola">
                 <p>
-                    Clique em uma Unidade de Ensino
-                    para ter mais informações!
+                    Carregando informações do WebSIG...
                 </p>
             </div>
-
         </aside>
 
         <div
             id="map"
-            aria-label="Mapa das escolas e rotas"
+            aria-label="Mapa das escolas e rotas da SEMED"
         ></div>
-
     </main>
 
-
-    <!-- ======================================
-         SCRIPTS
-         ====================================== -->
-
-    <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    ></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script
         type="module"
         src="{{ url_for('static', filename='js/mapa.js') }}"
     ></script>
-
 </body>
-
 </html>

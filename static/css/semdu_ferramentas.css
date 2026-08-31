@@ -1,0 +1,790 @@
+:root {
+    --semdu-ferramenta-fundo: rgba(255, 255, 255, 0.96);
+    --semdu-ferramenta-sombra: 0 10px 30px rgba(25, 32, 67, 0.18);
+    --semdu-ferramenta-borda: rgba(42, 52, 91, 0.2);
+    --semdu-topografia: #d06b12;
+}
+
+#map.semdu-mapa-sem-fundo,
+.semdu-mapa-sem-fundo {
+    background: #ffffff;
+}
+
+.semdu-tile-branco {
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+}
+
+.semdu-barra-superior,
+.semdu-barra-inferior {
+    position: absolute;
+    z-index: 760;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid var(--semdu-ferramenta-borda);
+    border-radius: 12px;
+    background: var(--semdu-ferramenta-fundo);
+    box-shadow: var(--semdu-ferramenta-sombra);
+    backdrop-filter: blur(12px);
+}
+
+.semdu-barra-superior {
+    top: 10px;
+    left: 58px;
+    max-width: calc(100% - 72px);
+}
+
+.semdu-barra-inferior {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.semdu-barra-superior button,
+.semdu-barra-inferior button {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 8px;
+    color: #46506a;
+    background: transparent;
+    font-size: 0.65rem;
+    font-weight: 850;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color 0.16s ease,
+        background-color 0.16s ease,
+        transform 0.16s ease;
+}
+
+.semdu-barra-superior button:hover,
+.semdu-barra-inferior button:hover,
+.semdu-barra-superior button.ativo,
+.semdu-barra-inferior button.ativo {
+    color: #ffffff;
+    background: var(--semdu);
+    transform: translateY(-1px);
+}
+
+.semdu-barra-superior button svg,
+.semdu-barra-inferior button svg {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.semdu-barra-divisor {
+    width: 1px;
+    height: 26px;
+    margin: 0 2px;
+    background: #d9deea;
+}
+
+.semdu-mapa-carregamento,
+.semdu-mapa-aviso {
+    top: 64px;
+}
+
+.semdu-coordenadas,
+.semdu-marca-mapa {
+    bottom: 58px;
+}
+
+.semdu-mapa-area .leaflet-bottom.leaflet-right {
+    bottom: 47px;
+}
+
+.semdu-menu-fundos {
+    position: absolute;
+    z-index: 920;
+    top: 58px;
+    left: 58px;
+    width: min(370px, calc(100% - 72px));
+    overflow: hidden;
+    border: 1px solid var(--semdu-ferramenta-borda);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(20, 28, 61, 0.25);
+}
+
+.semdu-menu-fundos[hidden] {
+    display: none !important;
+}
+
+.semdu-menu-fundos > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 15px 12px;
+    color: #ffffff;
+    background: linear-gradient(130deg, var(--semdu-escuro), var(--semdu));
+}
+
+.semdu-menu-fundos > header span {
+    display: block;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.55rem;
+    font-weight: 950;
+    letter-spacing: 0.11em;
+}
+
+.semdu-menu-fundos > header strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.9rem;
+}
+
+.semdu-menu-fundos > header button,
+.semdu-dialogo header button,
+.semdu-painel-medicao > header button {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 1.15rem;
+    cursor: pointer;
+}
+
+.semdu-lista-fundos {
+    max-height: min(440px, 55vh);
+    display: grid;
+    gap: 7px;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.semdu-fundo-opcao {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto 50px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    padding: 9px;
+    border: 1px solid #dde1ea;
+    border-radius: 10px;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.semdu-fundo-opcao:has(input:checked) {
+    border-color: rgba(35, 44, 97, 0.45);
+    background: var(--semdu-claro);
+}
+
+.semdu-fundo-opcao.indisponivel {
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
+.semdu-fundo-opcao input {
+    accent-color: var(--semdu);
+}
+
+.semdu-fundo-miniatura {
+    width: 50px;
+    height: 38px;
+    border: 1px solid #d4d9e4;
+    border-radius: 7px;
+    background:
+        linear-gradient(135deg, #f8f9fb 25%, #e9edf4 25%, #e9edf4 50%, #f8f9fb 50%, #f8f9fb 75%, #e9edf4 75%);
+    background-size: 16px 16px;
+}
+
+.semdu-fundo-miniatura.ortofoto {
+    background:
+        linear-gradient(135deg, rgba(51, 93, 59, 0.88), rgba(145, 129, 81, 0.85)),
+        repeating-linear-gradient(30deg, #556d43 0 4px, #7b885a 4px 8px);
+}
+
+.semdu-fundo-texto {
+    min-width: 0;
+    display: grid;
+}
+
+.semdu-fundo-texto strong {
+    overflow: hidden;
+    color: #2d354e;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semdu-fundo-texto small {
+    margin-top: 3px;
+    color: #747d91;
+    font-size: 0.59rem;
+    line-height: 1.38;
+}
+
+.semdu-opacidade-fundo {
+    display: grid;
+    gap: 7px;
+    padding: 11px 14px;
+    border-top: 1px solid #e0e4ec;
+    color: #4e5870;
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+
+.semdu-opacidade-fundo > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.semdu-opacidade-fundo input {
+    width: 100%;
+    accent-color: var(--semdu);
+}
+
+.semdu-menu-fundos-nota {
+    margin: 0;
+    padding: 0 14px 13px;
+    color: #7c8496;
+    font-size: 0.58rem;
+    line-height: 1.45;
+}
+
+.semdu-dialogo {
+    width: min(650px, calc(100vw - 24px));
+    max-height: min(760px, calc(100vh - 30px));
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 15px;
+    color: var(--texto);
+    background: #ffffff;
+    box-shadow: 0 28px 80px rgba(14, 21, 54, 0.38);
+}
+
+.semdu-dialogo::backdrop {
+    background: rgba(10, 16, 39, 0.55);
+    backdrop-filter: blur(3px);
+}
+
+.semdu-dialogo-estrutura {
+    max-height: inherit;
+    display: flex;
+    flex-direction: column;
+}
+
+.semdu-dialogo header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 17px 18px 14px;
+    color: #ffffff;
+    background: linear-gradient(130deg, var(--semdu-escuro), var(--semdu));
+}
+
+.semdu-dialogo header span {
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.57rem;
+    font-weight: 950;
+    letter-spacing: 0.11em;
+}
+
+.semdu-dialogo header h2 {
+    margin: 4px 0 0;
+    font-size: 1.1rem;
+}
+
+.semdu-dialogo-corpo {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px 18px 20px;
+    overflow-y: auto;
+}
+
+.semdu-dialogo footer,
+.semdu-painel-medicao > footer {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid #dfe3eb;
+    background: #f8f9fb;
+}
+
+.semdu-dialogo footer button,
+.semdu-painel-medicao > footer button {
+    min-height: 39px;
+    padding: 0 13px;
+    border-radius: 8px;
+    font-size: 0.68rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.semdu-dialogo footer button.secundario,
+.semdu-painel-medicao > footer button.secundario {
+    border: 1px solid #c7cdd9;
+    color: #4f5870;
+    background: #ffffff;
+}
+
+.semdu-dialogo footer button.primario,
+.semdu-painel-medicao > footer button.primario {
+    border: 1px solid var(--semdu);
+    color: #ffffff;
+    background: var(--semdu);
+}
+
+.semdu-campo {
+    display: grid;
+    gap: 6px;
+    color: #4c566e;
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+
+.semdu-campo input,
+.semdu-campo select {
+    width: 100%;
+    min-height: 40px;
+    padding: 7px 9px;
+    border: 1px solid #cbd1dd;
+    border-radius: 8px;
+    color: #283149;
+    background: #ffffff;
+    outline: none;
+}
+
+.semdu-campo input[type="color"] {
+    min-height: 42px;
+    padding: 4px;
+}
+
+.semdu-campo input[type="range"] {
+    padding: 0;
+    accent-color: var(--semdu);
+}
+
+.semdu-campo input:focus,
+.semdu-campo select:focus {
+    border-color: var(--semdu);
+    box-shadow: 0 0 0 3px rgba(35, 44, 97, 0.12);
+}
+
+.semdu-grade-campos {
+    display: grid;
+    gap: 12px;
+    margin-top: 13px;
+}
+
+.semdu-grade-campos.duas-colunas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.semdu-grade-campos .ocupar-duas {
+    grid-column: 1 / -1;
+}
+
+.semdu-estilo-abas {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    padding: 4px;
+    border-radius: 10px;
+    background: #edf0f5;
+}
+
+.semdu-estilo-abas button {
+    min-height: 37px;
+    border: 0;
+    border-radius: 8px;
+    color: #657087;
+    background: transparent;
+    font-size: 0.7rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.semdu-estilo-abas button.ativa {
+    color: var(--semdu);
+    background: #ffffff;
+    box-shadow: 0 3px 10px rgba(31, 39, 73, 0.1);
+}
+
+.semdu-estilo-secao {
+    display: none;
+}
+
+.semdu-estilo-secao.ativa {
+    display: block;
+}
+
+.semdu-opcao-checkbox {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px;
+    border: 1px solid #dce1ea;
+    border-radius: 9px;
+    color: #414b64;
+    background: #f8f9fb;
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.semdu-opcao-checkbox input {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--semdu);
+}
+
+.semdu-painel-medicao {
+    position: absolute;
+    z-index: 880;
+    top: 62px;
+    left: 12px;
+    width: min(430px, calc(100% - 24px));
+    max-height: calc(100% - 132px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(139, 79, 18, 0.25);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 18px 52px rgba(58, 35, 12, 0.22);
+}
+
+.semdu-painel-medicao[hidden] {
+    display: none !important;
+}
+
+.semdu-painel-medicao > header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 14px;
+    color: #ffffff;
+    background: linear-gradient(130deg, #8e480c, var(--semdu-topografia));
+}
+
+.semdu-painel-medicao > header span {
+    display: block;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.54rem;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+}
+
+.semdu-painel-medicao > header strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.85rem;
+}
+
+.semdu-medicao-instrucao {
+    flex: 0 0 auto;
+    padding: 9px 13px;
+    border-bottom: 1px solid #eadfce;
+    color: #6f5a45;
+    background: #fff9ef;
+    font-size: 0.64rem;
+    line-height: 1.45;
+}
+
+.semdu-medicao-resultados {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px;
+    overflow: auto;
+}
+
+.semdu-medicao-vazia {
+    padding: 22px 12px;
+    border: 1px dashed #d8c7b2;
+    border-radius: 9px;
+    color: #846f5a;
+    background: #fffbf5;
+    font-size: 0.68rem;
+    text-align: center;
+}
+
+.semdu-medicao-destaques {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.semdu-medicao-destaques article {
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid #e5d5c3;
+    border-radius: 9px;
+    background: #fffaf3;
+}
+
+.semdu-medicao-destaques span {
+    display: block;
+    color: #8a735c;
+    font-size: 0.53rem;
+    font-weight: 850;
+    text-transform: uppercase;
+}
+
+.semdu-medicao-destaques strong {
+    display: block;
+    margin-top: 4px;
+    overflow-wrap: anywhere;
+    color: #5f3e1e;
+    font-size: 0.69rem;
+    line-height: 1.35;
+}
+
+.semdu-tabela-medicao-wrap {
+    margin-top: 10px;
+    overflow: auto;
+    border: 1px solid #e1e5ec;
+    border-radius: 9px;
+}
+
+.semdu-tabela-medicao-wrap.grande {
+    max-height: 270px;
+}
+
+.semdu-tabela-medicao {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.6rem;
+    white-space: nowrap;
+}
+
+.semdu-tabela-medicao th,
+.semdu-tabela-medicao td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #e6e9ef;
+    text-align: left;
+}
+
+.semdu-tabela-medicao th {
+    position: sticky;
+    top: 0;
+    color: #5b6478;
+    background: #f1f3f7;
+    font-weight: 900;
+}
+
+.semdu-tabela-medicao td {
+    color: #3d465c;
+    background: #ffffff;
+}
+
+.semdu-medicao-sistema {
+    display: block;
+    margin-top: 8px;
+    color: #7e8492;
+    font-size: 0.56rem;
+    line-height: 1.45;
+}
+
+.semdu-modo-medicao {
+    cursor: crosshair !important;
+}
+
+.semdu-medicao-rotulo-ponto,
+.semdu-localizacao-rotulo,
+.semdu-rotulo-camada {
+    border: 0 !important;
+    border-radius: 5px !important;
+    box-shadow: 0 4px 13px rgba(19, 26, 54, 0.2) !important;
+    font-weight: 850 !important;
+}
+
+.semdu-medicao-rotulo-ponto {
+    color: #ffffff !important;
+    background: var(--semdu-topografia) !important;
+    font-size: 0.57rem !important;
+}
+
+.semdu-localizacao-rotulo {
+    color: #ffffff !important;
+    background: #176d99 !important;
+    font-size: 0.6rem !important;
+}
+
+.semdu-rotulo-camada {
+    padding: 1px 3px !important;
+    border: 0 !important;
+    color: var(--semdu-rotulo-cor, #1d2438) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: var(--semdu-rotulo-tamanho, 12px) !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+    text-shadow:
+        var(--semdu-rotulo-halo-negativo, -3px) 0 var(--semdu-rotulo-halo, #ffffff),
+        var(--semdu-rotulo-halo-largura, 3px) 0 var(--semdu-rotulo-halo, #ffffff),
+        0 var(--semdu-rotulo-halo-negativo, -3px) var(--semdu-rotulo-halo, #ffffff),
+        0 var(--semdu-rotulo-halo-largura, 3px) var(--semdu-rotulo-halo, #ffffff),
+        1px 1px var(--semdu-rotulo-halo, #ffffff),
+        -1px -1px var(--semdu-rotulo-halo, #ffffff);
+    pointer-events: none !important;
+}
+
+.semdu-rotulo-camada::before,
+.semdu-medicao-rotulo-ponto::before,
+.semdu-localizacao-rotulo::before {
+    display: none !important;
+}
+
+.semdu-ferramentas-toast {
+    position: fixed;
+    z-index: 5000;
+    left: 50%;
+    bottom: 82px;
+    max-width: min(440px, calc(100vw - 24px));
+    padding: 10px 14px;
+    border: 1px solid #cfd4df;
+    border-radius: 999px;
+    color: #39425a;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 14px 38px rgba(20, 28, 60, 0.24);
+    font-size: 0.68rem;
+    font-weight: 750;
+    text-align: center;
+    opacity: 0;
+    transform: translate(-50%, 10px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.semdu-ferramentas-toast[hidden] {
+    display: none !important;
+}
+
+.semdu-ferramentas-toast.visivel {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.semdu-ferramentas-toast.sucesso {
+    border-color: #b9ddc5;
+    color: #185c37;
+    background: rgba(239, 249, 242, 0.98);
+}
+
+.semdu-ferramentas-toast.erro {
+    border-color: #e8c4c0;
+    color: #8d2b21;
+    background: rgba(255, 244, 243, 0.98);
+}
+
+@media (max-width: 1380px) {
+    .semdu-barra-superior button span {
+        display: none;
+    }
+
+    .semdu-barra-superior button {
+        width: 38px;
+        padding: 0;
+    }
+}
+
+@media (max-width: 960px) {
+    .semdu-barra-superior {
+        right: 10px;
+        max-width: none;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .semdu-barra-superior::-webkit-scrollbar {
+        display: none;
+    }
+
+    .semdu-barra-inferior {
+        max-width: calc(100% - 18px);
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .semdu-barra-inferior::-webkit-scrollbar {
+        display: none;
+    }
+
+    .semdu-barra-inferior button span {
+        display: none;
+    }
+
+    .semdu-barra-inferior button {
+        width: 38px;
+        padding: 0;
+        flex: 0 0 38px;
+    }
+
+    .semdu-painel-medicao {
+        top: 62px;
+        max-height: calc(100% - 128px);
+    }
+}
+
+@media (max-width: 620px) {
+    .semdu-barra-superior {
+        left: 52px;
+    }
+
+    .semdu-menu-fundos {
+        left: 8px;
+        width: calc(100% - 16px);
+    }
+
+    .semdu-coordenadas {
+        display: none;
+    }
+
+    .semdu-marca-mapa {
+        bottom: 58px;
+        left: 8px;
+    }
+
+    .semdu-medicao-destaques {
+        grid-template-columns: 1fr;
+    }
+
+    .semdu-grade-campos.duas-colunas {
+        grid-template-columns: 1fr;
+    }
+
+    .semdu-grade-campos .ocupar-duas {
+        grid-column: auto;
+    }
+
+    .semdu-dialogo footer,
+    .semdu-painel-medicao > footer {
+        flex-wrap: wrap;
+    }
+
+    .semdu-dialogo footer button,
+    .semdu-painel-medicao > footer button {
+        flex: 1 1 120px;
+    }
+}

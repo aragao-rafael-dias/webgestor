@@ -37,6 +37,8 @@ from models import (
 )
 
 from routes.admin import admin_bp
+from routes.arborizacao import arborizacao_bp
+from routes.cadastro_territorial import cadastro_territorial_bp
 from routes.auth import auth_bp
 from routes.escolas import escolas_bp
 from routes.home import home_bp
@@ -47,6 +49,7 @@ from routes.semdu import semdu_bp
 from routes.setores import setores_bp
 
 from servicos.acessos_modulos import (
+    MODULO_CADASTRO_TERRITORIAL,
     MODULO_SEMDU,
     MODULO_SEMED,
     UsuarioContextual,
@@ -254,6 +257,17 @@ def identificar_modulo_requisicao():
         return None
 
     if (
+        request.path == "/cadastro-territorial"
+        or request.path.startswith(
+            "/cadastro-territorial/"
+        )
+        or request.path.startswith(
+            "/api/cadastro-territorial/"
+        )
+    ):
+        return MODULO_CADASTRO_TERRITORIAL
+
+    if (
         request.path == "/semdu"
         or request.path.startswith(
             "/semdu/"
@@ -364,6 +378,14 @@ app.register_blueprint(
     semdu_bp
 )
 
+app.register_blueprint(
+    arborizacao_bp
+)
+
+app.register_blueprint(
+    cadastro_territorial_bp
+)
+
 
 # ==========================================
 # COMPLEMENTOS OPCIONAIS JÁ USADOS NA SEMED
@@ -448,6 +470,24 @@ registrar_comando(
 registrar_comando(
     "comandos.modulos",
     "registrar_comandos_modulos",
+    obrigatorio=True,
+)
+
+registrar_comando(
+    "comandos.arborizacao",
+    "registrar_comandos_arborizacao",
+    obrigatorio=True,
+)
+
+registrar_comando(
+    "comandos.ortofotos_semdu",
+    "registrar_comandos_ortofotos_semdu",
+    obrigatorio=True,
+)
+
+registrar_comando(
+    "comandos.cadastro_territorial",
+    "registrar_comandos_cadastro_territorial",
     obrigatorio=True,
 )
 
