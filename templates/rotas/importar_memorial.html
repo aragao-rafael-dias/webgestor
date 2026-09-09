@@ -22,21 +22,29 @@
         button { border: 0; border-radius: 9px; padding: 11px 16px; cursor: pointer; font-weight: 700; font: inherit; }
         button.primario { background: #155eef; color: #fff; }
         button.sucesso { background: #067647; color: #fff; }
-        button:disabled { opacity: .55; cursor: wait; }
+        button:disabled { opacity: .55; cursor: not-allowed; }
         input[type=file] { width: 100%; padding: 12px; border: 1px dashed #98a2b3; border-radius: 10px; background: #f8fafc; }
         #mapa { height: 520px; border-radius: 12px; border: 1px solid #d0d5dd; }
         .oculto { display: none !important; }
         .status { margin-top: 12px; padding: 12px; border-radius: 10px; background: #eef4ff; }
         .erro { background: #fef3f2; color: #b42318; }
         .sucesso-msg { background: #ecfdf3; color: #067647; }
-        .avisos { margin: 12px 0 0; padding-left: 20px; color: #7a2e0e; }
+        .avisos { margin: 12px 0 0; padding: 12px 12px 12px 34px; border-radius: 10px; background: #fffaeb; color: #7a2e0e; }
+        .alertas { margin: 12px 0 0; padding: 12px 12px 12px 34px; border-radius: 10px; background: #fef3f2; color: #912018; border: 1px solid #fecdca; }
+        .confirmacao { margin-top: 14px; padding: 12px; border-radius: 10px; border: 1px solid #fecdca; background: #fff7f6; }
+        .confirmacao label { display: flex; gap: 9px; align-items: flex-start; font-weight: 600; }
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { padding: 9px 10px; border-bottom: 1px solid #eaecf0; text-align: left; font-size: .92rem; }
+        th, td { padding: 9px 10px; border-bottom: 1px solid #eaecf0; text-align: left; font-size: .92rem; vertical-align: top; }
         th { color: #475467; }
+        .rolagem { overflow-x: auto; }
         .legenda { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; font-size: .92rem; }
         .ponto-cor { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .ida { background: #155eef; }
         .volta { background: #d92d20; }
+        .atual { background: #667085; }
+        details.pontos { margin-top: 14px; border: 1px solid #eaecf0; border-radius: 10px; padding: 10px 12px; }
+        details.pontos summary { cursor: pointer; font-weight: 700; }
+        .nota { color: #667085; font-size: .92rem; }
         @media (max-width: 720px) { #mapa { height: 420px; } header { align-items: flex-start; flex-direction: column; } }
     </style>
 </head>
@@ -46,13 +54,13 @@
         <h1>Importar rota a partir de memorial</h1>
         <div style="color:#667085;font-size:.92rem;margin-top:4px">DOCX → pontos notáveis → roteamento viário → PostGIS</div>
     </div>
-    <a href="{{ url_for('home.home') }}">← Voltar ao WebSIG</a>
+    <a href="{{ url_for('home.mapa_semed') }}">← Voltar ao mapa</a>
 </header>
 
 <main>
     <section class="card">
         <h2 style="margin-top:0">1. Selecione o memorial</h2>
-        <p>Use o memorial DOCX no padrão da SEMED. O sistema não altera o banco antes da confirmação.</p>
+        <p>Use um memorial DOCX no padrão da SEMED. O banco só é alterado depois da prévia e da confirmação.</p>
         <form id="form-upload" class="acoes">
             <input id="memorial" name="memorial" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
             <button id="btn-preview" class="primario" type="submit">Ler memorial e gerar prévia</button>
@@ -64,22 +72,38 @@
         <h2 style="margin-top:0">2. Conferência</h2>
         <div id="campos" class="grid"></div>
         <ul id="avisos" class="avisos oculto"></ul>
+        <div id="alertas-box" class="oculto">
+            <h3>Alertas de geometria</h3>
+            <p class="nota">Estes alertas podem indicar coordenadas incorretas, trechos ambíguos ou diferenças relevantes entre o memorial e o roteamento.</p>
+            <ul id="alertas" class="alertas"></ul>
+        </div>
         <div id="registros"></div>
+        <div id="pontos"></div>
     </section>
 
     <section id="mapa-card" class="card oculto">
         <h2 style="margin-top:0">3. Prévia no mapa</h2>
         <div class="legenda">
-            <span><span class="ponto-cor ida"></span>IDA</span>
-            <span><span class="ponto-cor volta"></span>VOLTA</span>
+            <span><span class="ponto-cor ida"></span>Novo traçado IDA</span>
+            <span><span class="ponto-cor volta"></span>Novo traçado VOLTA</span>
+            <span><span class="ponto-cor atual"></span>Traçado atualmente salvo</span>
         </div>
         <div id="mapa"></div>
     </section>
 
     <section id="salvar-card" class="card oculto">
         <h2 style="margin-top:0">4. Salvar no WebSIG</h2>
-        <p>Ao confirmar, IDA e VOLTA são gravadas na mesma transação. Se qualquer trecho falhar, nenhuma alteração é confirmada.</p>
-        <button id="btn-salvar" class="sucesso" type="button">Confirmar e salvar rota</button>
+        <p>IDA e VOLTA são gravadas na mesma transação. Se qualquer trecho falhar, nenhuma alteração é confirmada.</p>
+        <div id="confirmacao-alertas" class="confirmacao oculto">
+            <label>
+                <input id="check-alertas" type="checkbox">
+                <span>Revisei os alertas de geometria e a prévia no mapa e confirmo que desejo salvar este traçado.</span>
+            </label>
+        </div>
+        <div class="acoes" style="margin-top:14px">
+            <button id="btn-salvar" class="sucesso" type="button">Confirmar e salvar rota</button>
+            <a href="{{ url_for('home.mapa_semed') }}" style="color:#155eef;font-weight:600;text-decoration:none">Cancelar e voltar ao mapa</a>
+        </div>
     </section>
 </main>
 
@@ -93,9 +117,17 @@
     const resumo = document.getElementById('resumo');
     const mapaCard = document.getElementById('mapa-card');
     const salvarCard = document.getElementById('salvar-card');
+    const confirmacaoAlertas = document.getElementById('confirmacao-alertas');
+    const checkAlertas = document.getElementById('check-alertas');
     let rotaAtual = null;
     let mapa = null;
     let grupo = null;
+
+    function escaparHtml(valor) {
+        return String(valor ?? '').replace(/[&<>'"]/g, caractere => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        })[caractere]);
+    }
 
     function status(texto, tipo = '') {
         statusBox.textContent = texto;
@@ -104,6 +136,36 @@
 
     function formatarKm(valor) {
         return valor == null ? '—' : `${Number(valor).toFixed(2)} km`;
+    }
+
+    function atualizarBotaoSalvar() {
+        const precisa = Boolean(rotaAtual && rotaAtual.requer_confirmacao);
+        btnSalvar.disabled = !rotaAtual || (precisa && !checkAlertas.checked);
+    }
+
+    function montarPontos(rota) {
+        const destino = document.getElementById('pontos');
+        destino.innerHTML = ['IDA', 'VOLTA'].map(nome => {
+            const trecho = rota.trechos[nome];
+            const linhas = trecho.pontos.map((p, indice) => {
+                const distancia = trecho.distancias_entre_pontos_km?.[indice];
+                return `<tr>
+                    <td>${escaparHtml(p.ordem)}</td>
+                    <td>${escaparHtml(p.referencia)}</td>
+                    <td>${escaparHtml(p.coordenadas)}</td>
+                    <td>${escaparHtml(p.logradouro || '—')}</td>
+                    <td>${escaparHtml(p.direcao_seguir || '—')}</td>
+                    <td>${distancia == null ? '—' : escaparHtml(formatarKm(distancia))}</td>
+                </tr>`;
+            }).join('');
+            return `<details class="pontos">
+                <summary>Pontos do trecho ${nome} (${trecho.pontos.length})</summary>
+                <div class="rolagem"><table>
+                    <thead><tr><th>#</th><th>Referência</th><th>Coordenadas</th><th>Logradouro</th><th>Instrução do memorial</th><th>Roteador até o próximo</th></tr></thead>
+                    <tbody>${linhas}</tbody>
+                </table></div>
+            </details>`;
+        }).join('');
     }
 
     function montarResumo(rota) {
@@ -123,29 +185,46 @@
             ['Km calculado VOLTA', formatarKm(volta.distancia_roteada_km)],
         ];
         campos.innerHTML = itens.map(([rotulo, valor]) =>
-            `<div class="campo"><small>${rotulo}</small><strong>${String(valor)}</strong></div>`
+            `<div class="campo"><small>${escaparHtml(rotulo)}</small><strong>${escaparHtml(valor)}</strong></div>`
         ).join('');
 
         const avisos = document.getElementById('avisos');
-        if (rota.avisos && rota.avisos.length) {
-            avisos.innerHTML = rota.avisos.map(item => `<li>${item}</li>`).join('');
+        if (rota.avisos?.length) {
+            avisos.innerHTML = rota.avisos.map(item => `<li>${escaparHtml(item)}</li>`).join('');
             avisos.classList.remove('oculto');
         } else {
             avisos.innerHTML = '';
             avisos.classList.add('oculto');
         }
 
+        const alertasBox = document.getElementById('alertas-box');
+        const alertas = document.getElementById('alertas');
+        if (rota.alertas_geometria?.length) {
+            alertas.innerHTML = rota.alertas_geometria.map(item => `<li>${escaparHtml(item)}</li>`).join('');
+            alertasBox.classList.remove('oculto');
+            confirmacaoAlertas.classList.remove('oculto');
+            checkAlertas.checked = false;
+        } else {
+            alertas.innerHTML = '';
+            alertasBox.classList.add('oculto');
+            confirmacaoAlertas.classList.add('oculto');
+            checkAlertas.checked = false;
+        }
+
         const registros = document.getElementById('registros');
-        if (rota.registros_existentes && rota.registros_existentes.length) {
+        if (rota.registros_existentes?.length) {
             registros.innerHTML = `
                 <h3>Registros existentes que serão atualizados</h3>
-                <table>
-                    <thead><tr><th>ID</th><th>Trecho</th><th>Pontos atuais</th><th>Vértices atuais</th></tr></thead>
-                    <tbody>${rota.registros_existentes.map(r => `<tr><td>${r.id}</td><td>${r.trecho}</td><td>${r.total_pontos ?? '—'}</td><td>${r.vertices ?? '—'}</td></tr>`).join('')}</tbody>
-                </table>`;
+                <div class="rolagem"><table>
+                    <thead><tr><th>ID</th><th>Trecho</th><th>Região atual</th><th>Pontos atuais</th><th>Vértices atuais</th><th>Extensão atual</th></tr></thead>
+                    <tbody>${rota.registros_existentes.map(r => `<tr><td>${escaparHtml(r.id)}</td><td>${escaparHtml(r.trecho)}</td><td>${escaparHtml(r.regiao || '—')}</td><td>${escaparHtml(r.total_pontos ?? '—')}</td><td>${escaparHtml(r.vertices ?? '—')}</td><td>${escaparHtml(formatarKm(r.extensao_km))}</td></tr>`).join('')}</tbody>
+                </table></div>`;
         } else {
             registros.innerHTML = '<p><strong>Nova rota:</strong> não foram encontrados registros com esse nome; IDA e VOLTA serão criadas.</p>';
         }
+
+        montarPontos(rota);
+        atualizarBotaoSalvar();
     }
 
     function montarMapa(rota) {
@@ -159,22 +238,38 @@
         if (grupo) grupo.remove();
         grupo = L.featureGroup().addTo(mapa);
 
+        for (const atual of (rota.registros_existentes || [])) {
+            if (!atual.geometria) continue;
+            L.geoJSON(atual.geometria, {
+                style: { color: '#667085', weight: 4, opacity: .65, dashArray: '8 8' }
+            }).bindPopup(`Traçado atual · ${escaparHtml(atual.trecho)}`).addTo(grupo);
+        }
+
         const estilos = {
-            IDA: { color: '#155eef', weight: 5, opacity: .85 },
-            VOLTA: { color: '#d92d20', weight: 5, opacity: .78 }
+            IDA: { color: '#155eef', weight: 5, opacity: .88 },
+            VOLTA: { color: '#d92d20', weight: 5, opacity: .80 }
         };
 
         for (const nome of ['IDA', 'VOLTA']) {
             const trecho = rota.trechos[nome];
-            L.geoJSON(trecho.geometria, { style: estilos[nome] }).bindPopup(`${nome} · ${formatarKm(trecho.distancia_roteada_km)}`).addTo(grupo);
+            L.geoJSON(trecho.geometria, { style: estilos[nome] })
+                .bindPopup(`${nome} · ${escaparHtml(formatarKm(trecho.distancia_roteada_km))}`)
+                .addTo(grupo);
             trecho.pontos.forEach(p => {
-                L.circleMarker([p.lat, p.lon], { radius: 4, color: estilos[nome].color, fillOpacity: .9 })
-                    .bindPopup(`<strong>${nome} · ${p.ordem}</strong><br>${p.referencia}`)
+                L.circleMarker([p.lat, p.lon], {
+                    radius: 4,
+                    color: estilos[nome].color,
+                    fillColor: estilos[nome].color,
+                    fillOpacity: .9
+                })
+                    .bindPopup(`<strong>${nome} · ${escaparHtml(p.ordem)}</strong><br>${escaparHtml(p.referencia)}<br><small>${escaparHtml(p.coordenadas)}</small>`)
                     .addTo(grupo);
             });
         }
 
-        mapa.fitBounds(grupo.getBounds(), { padding: [24, 24] });
+        if (grupo.getLayers().length) {
+            mapa.fitBounds(grupo.getBounds(), { padding: [24, 24] });
+        }
         setTimeout(() => mapa.invalidateSize(), 50);
     }
 
@@ -184,6 +279,7 @@
         resumo.classList.add('oculto');
         mapaCard.classList.add('oculto');
         salvarCard.classList.add('oculto');
+        atualizarBotaoSalvar();
 
         if (!arquivo.files.length) return;
         btnPreview.disabled = true;
@@ -202,13 +298,15 @@
             mapaCard.classList.remove('oculto');
             salvarCard.classList.remove('oculto');
             montarMapa(rotaAtual);
-            status('Prévia gerada. Confira o mapa antes de salvar.', 'sucesso-msg');
+            status('Prévia gerada. Confira o traçado atual, o novo traçado e os pontos antes de salvar.', 'sucesso-msg');
         } catch (erro) {
             status(erro.message || 'Erro ao gerar a prévia.', 'erro');
         } finally {
             btnPreview.disabled = false;
         }
     });
+
+    checkAlertas.addEventListener('change', atualizarBotaoSalvar);
 
     btnSalvar.addEventListener('click', async () => {
         if (!rotaAtual) return;
@@ -220,16 +318,20 @@
             const resposta = await fetch('{{ url_for("rotas.salvar_importacao_memorial") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rota: rotaAtual })
+                body: JSON.stringify({
+                    rota: rotaAtual,
+                    confirmar_alertas: !rotaAtual.requer_confirmacao || checkAlertas.checked
+                })
             });
             const dados = await resposta.json();
             if (!resposta.ok || !dados.sucesso) throw new Error(dados.erro || 'Falha ao salvar a rota.');
             const ids = dados.registros.map(r => `${r.trecho}: ID ${r.id} (${r.vertices} vértices)`).join(' · ');
             status(`${dados.mensagem} ${ids}`, 'sucesso-msg');
+            rotaAtual = null;
+            atualizarBotaoSalvar();
         } catch (erro) {
             status(erro.message || 'Erro ao salvar a rota.', 'erro');
-        } finally {
-            btnSalvar.disabled = false;
+            atualizarBotaoSalvar();
         }
     });
 </script>
