@@ -11,6 +11,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from models import db
 from servicos.importacao_rotas_memorial import (
     importar_docx,
+    nome_rota_banco,
+    normalizar_regiao_banco,
     pontos_para_json,
     salvar_upload_temporario,
     validar_geojson_linha,
@@ -29,7 +31,19 @@ SQL_ROTAS_EXISTENTES = text("""
         regiao,
         trecho,
         total_pontos,
-        CASE WHEN geom IS NULL THEN 0 ELSE ST_NPoints(geom) END AS vertices
+        CASE WHEN geom IS NULL THEN 0 ELSE ST_NPoints(geom) END AS vertices,
+        CASE
+            WHEN geom IS NULL OR ST_IsEmpty(geom) OR ST_SRID(geom) <= 0
+                THEN NULL
+            ELSE ROUND((ST_Length(ST_Transform(ST_Force2D(geom), 31984)) / 1000.0)::numeric, 3)
+        END AS extensao_km,
+        CASE
+            WHEN geom IS NULL OR ST_IsEmpty(geom) OR ST_SRID(geom) <= 0
+                THEN NULL
+            WHEN ST_SRID(geom) = 4326
+                THEN ST_AsGeoJSON(ST_Force2D(geom))::jsonb
+            ELSE ST_AsGeoJSON(ST_Transform(ST_Force2D(geom), 4326))::jsonb
+        END AS geometria
     FROM semed.rotas_geral
     WHERE LOWER(BTRIM(nome_rota)) = LOWER(BTRIM(:nome_rota))
     ORDER BY
@@ -41,23 +55,18 @@ SQL_ROTAS_EXISTENTES = text("""
         id
 """)
 
-SQL_BUSCAR_TRECHO = text("""
+SQL_BUSCAR_IDS_TRECHO = text("""
     SELECT id
     FROM semed.rotas_geral
     WHERE LOWER(BTRIM(nome_rota)) = LOWER(BTRIM(:nome_rota))
       AND UPPER(BTRIM(trecho)) = :trecho
     ORDER BY id
-    LIMIT 1
 """)
 
 SQL_ATUALIZAR_TRECHO = text("""
     UPDATE semed.rotas_geral
     SET
         geom = ST_SetSRID(ST_GeomFromGeoJSON(:geom_geojson), 4326),
-        regiao = CASE
-            WHEN BTRIM(:regiao) <> '' THEN :regiao
-            ELSE regiao
-        END,
         total_pontos = :total_pontos,
         pontos_notaveis = :pontos_notaveis
     WHERE id = :rota_id
@@ -107,6 +116,21 @@ def _existentes_para_json(nome_rota: str) -> list[dict]:
         {"nome_rota": nome_rota},
     ).mappings().all()
     return [dict(linha) for linha in linhas]
+
+
+def _id_trecho_existente(nome_rota: str, trecho: str) -> int | None:
+    ids = list(
+        db.session.execute(
+            SQL_BUSCAR_IDS_TRECHO,
+            {"nome_rota": nome_rota, "trecho": trecho},
+        ).scalars()
+    )
+    if len(ids) > 1:
+        raise ValueError(
+            f"Existem {len(ids)} registros de {trecho} para {nome_rota}. "
+            "Corrija a duplicidade antes de importar o memorial."
+        )
+    return int(ids[0]) if ids else None
 
 
 @rotas_bp.route("/api/rotas")
@@ -193,8 +217,11 @@ def preview_importacao_memorial():
 
     caminho: Path | None = None
     try:
-        caminho = salvar_upload_temporario(arquivo)
         limite_bytes = int(current_app.config.get("MEMORIAL_MAX_BYTES", 10 * 1024 * 1024))
+        if request.content_length and request.content_length > limite_bytes + (1024 * 1024):
+            return jsonify({"sucesso": False, "erro": "O memorial excede o limite de 10 MB."}), 413
+
+        caminho = salvar_upload_temporario(arquivo)
         if caminho.stat().st_size > limite_bytes:
             raise ValueError("O memorial excede o limite de 10 MB.")
 
@@ -236,10 +263,19 @@ def salvar_importacao_memorial():
     dados = request.get_json(silent=True) or {}
     rota = dados.get("rota") or {}
 
-    nome_rota = str(rota.get("nome_rota") or "").strip()
-    regiao = str(rota.get("regiao") or "").strip()
-    if not nome_rota.startswith("Rota") or len(nome_rota) > 80:
-        return jsonify({"sucesso": False, "erro": "Nome de rota inválido."}), 400
+    numero_linha = str(rota.get("numero_linha") or "").strip()
+    try:
+        nome_rota = nome_rota_banco(numero_linha)
+    except ValueError as exc:
+        return jsonify({"sucesso": False, "erro": str(exc)}), 400
+
+    regiao = normalizar_regiao_banco(str(rota.get("regiao") or ""))
+    alertas = rota.get("alertas_geometria") or []
+    if alertas and not bool(dados.get("confirmar_alertas")):
+        return jsonify({
+            "sucesso": False,
+            "erro": "A prévia possui alertas de geometria. Confirme a revisão antes de salvar.",
+        }), 409
 
     trechos = rota.get("trechos") or {}
     if set(trechos) != {"IDA", "VOLTA"}:
@@ -254,12 +290,9 @@ def salvar_importacao_memorial():
             trecho = trechos[nome_trecho] or {}
             pontos = trecho.get("pontos") or []
             pontos_json = pontos_para_json(pontos)
-            geom_json = validar_geojson_linha(trecho.get("geometria"))
+            geom_json = validar_geojson_linha(trecho.get("geometria"), pontos=pontos)
 
-            existente = db.session.execute(
-                SQL_BUSCAR_TRECHO,
-                {"nome_rota": nome_rota, "trecho": nome_trecho},
-            ).scalar()
+            existente = _id_trecho_existente(nome_rota, nome_trecho)
 
             parametros = {
                 "nome_rota": nome_rota,
@@ -272,7 +305,7 @@ def salvar_importacao_memorial():
             }
 
             if existente is not None:
-                parametros["rota_id"] = int(existente)
+                parametros["rota_id"] = existente
                 rota_id = db.session.execute(SQL_ATUALIZAR_TRECHO, parametros).scalar_one()
                 acao = "atualizado"
             else:
