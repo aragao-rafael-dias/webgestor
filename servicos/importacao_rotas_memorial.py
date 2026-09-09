@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import tempfile
+import unicodedata
 from dataclasses import asdict, dataclass, field
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +14,10 @@ import requests
 from docx import Document
 
 from servicos.memoriais_docx import extrair_metadados_docx, texto_limpo
+
+
+MAX_PONTOS_POR_TRECHO = 500
+MAX_VERTICES_GEOMETRIA = 100_000
 
 
 @dataclass
@@ -40,6 +47,7 @@ class TrechoImportado:
     geometria: dict[str, Any] | None = None
     distancia_roteada_km: float | None = None
     duracao_roteada_min: float | None = None
+    distancias_entre_pontos_km: list[float] = field(default_factory=list)
 
     def para_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +56,7 @@ class TrechoImportado:
             "geometria": self.geometria,
             "distancia_roteada_km": self.distancia_roteada_km,
             "duracao_roteada_min": self.duracao_roteada_min,
+            "distancias_entre_pontos_km": list(self.distancias_entre_pontos_km),
         }
 
 
@@ -61,6 +70,7 @@ class MemorialRotaImportado:
     km_volta_documento: float | None
     trechos: dict[str, TrechoImportado]
     avisos: list[str] = field(default_factory=list)
+    alertas_geometria: list[str] = field(default_factory=list)
 
     def para_dict(self) -> dict[str, Any]:
         return {
@@ -75,7 +85,18 @@ class MemorialRotaImportado:
                 for nome, trecho in self.trechos.items()
             },
             "avisos": list(self.avisos),
+            "alertas_geometria": list(self.alertas_geometria),
+            "requer_confirmacao": bool(self.alertas_geometria),
         }
+
+
+def _sem_acentos(valor: str) -> str:
+    normalizado = unicodedata.normalize("NFD", texto_limpo(valor))
+    return "".join(
+        caractere
+        for caractere in normalizado
+        if unicodedata.category(caractere) != "Mn"
+    )
 
 
 def nome_rota_banco(numero_linha: str) -> str:
@@ -86,7 +107,25 @@ def nome_rota_banco(numero_linha: str) -> str:
     codigo = re.sub(r"\s+", "", codigo)
     if not codigo:
         raise ValueError("Número da linha não identificado no memorial.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", codigo):
+        raise ValueError("O número da linha possui caracteres não reconhecidos.")
     return f"Rota{codigo}"
+
+
+def normalizar_regiao_banco(valor: str) -> str:
+    texto = texto_limpo(valor)
+    if not texto:
+        return ""
+
+    chave = re.sub(r"\s+", " ", _sem_acentos(texto).upper()).strip()
+    numero = re.fullmatch(r"(?:REGIAO\s*)?0*(\d+)", chave)
+    if numero:
+        return f"REGIÃO {int(numero.group(1))}"
+    if chave in {"UNIVERSIDADE", "REGIAO UNIVERSIDADE"}:
+        return "REGIÃO UNIVERSIDADE"
+    if chave.startswith("REGIAO "):
+        return "REGIÃO " + texto_limpo(chave[len("REGIAO "):])
+    return texto
 
 
 def _texto_itinerario(documento: Document) -> str:
@@ -100,7 +139,8 @@ def _texto_itinerario(documento: Document) -> str:
                 if not chave or chave in vistos:
                     continue
                 vistos.add(chave)
-                if "ITINERÁRIO DA LINHA" in chave.upper() or "ITINERARIO DA LINHA" in chave.upper():
+                chave_sem_acentos = _sem_acentos(chave).upper()
+                if "ITINERARIO DA LINHA" in chave_sem_acentos:
                     candidatos.append(chave)
     if not candidatos:
         raise ValueError("O memorial não possui a seção 'Itinerário da Linha'.")
@@ -113,7 +153,7 @@ def _extrair_regiao(documento: Document) -> str:
             for celula in linha.cells:
                 match = re.search(r"(?mi)^\s*Região\s*:\s*([^\n\r]+)", celula.text or "")
                 if match:
-                    return texto_limpo(match.group(1))
+                    return normalizar_regiao_banco(match.group(1))
     return ""
 
 
@@ -162,7 +202,7 @@ def extrair_itinerarios(documento: Document) -> dict[str, TrechoImportado]:
         if not linha:
             continue
 
-        cabecalho = re.sub(r"[^A-Z]", "", linha.upper())
+        cabecalho = re.sub(r"[^A-Z]", "", _sem_acentos(linha).upper())
         if cabecalho == "IDA":
             finalizar_ponto()
             trecho_atual = trechos["IDA"]
@@ -173,7 +213,7 @@ def extrair_itinerarios(documento: Document) -> dict[str, TrechoImportado]:
             continue
         if trecho_atual is None:
             continue
-        if cabecalho in {"INICIO", "TERMINO", "FIM"}:
+        if cabecalho in {"INICIO", "TERMINO", "CHEGADA", "FIM"}:
             continue
 
         match_ponto = re.match(r"^(\d+)\s*[.)-]\s*(.+)$", linha)
@@ -204,7 +244,11 @@ def extrair_itinerarios(documento: Document) -> dict[str, TrechoImportado]:
             ponto_atual.logradouro = texto_limpo(match_logradouro.group(1))
             continue
 
-        match_direcao = re.match(r"^(?:DIREÇÃO(?: A SEGUIR)?|DIRECAO(?: A SEGUIR)?)\s*:\s*(.*)$", linha, flags=re.IGNORECASE)
+        match_direcao = re.match(
+            r"^(?:DIREÇÃO(?: A SEGUIR)?|DIRECAO(?: A SEGUIR)?)\s*:\s*(.*)$",
+            linha,
+            flags=re.IGNORECASE,
+        )
         if match_direcao:
             ponto_atual.direcao_seguir = texto_limpo(match_direcao.group(1))
             continue
@@ -222,6 +266,8 @@ def extrair_itinerarios(documento: Document) -> dict[str, TrechoImportado]:
     for nome, trecho in trechos.items():
         if len(trecho.pontos) < 2:
             raise ValueError(f"O trecho {nome} precisa ter pelo menos dois pontos com coordenadas.")
+        if len(trecho.pontos) > MAX_PONTOS_POR_TRECHO:
+            raise ValueError(f"O trecho {nome} excede o limite de {MAX_PONTOS_POR_TRECHO} pontos.")
         ordens = [p.ordem for p in trecho.pontos]
         if len(ordens) != len(set(ordens)):
             raise ValueError(f"Há números de ponto repetidos no trecho {nome}.")
@@ -229,11 +275,78 @@ def extrair_itinerarios(documento: Document) -> dict[str, TrechoImportado]:
     return trechos
 
 
+def _chave_referencia(valor: str) -> str:
+    chave = _sem_acentos(valor).upper()
+    chave = re.sub(r"[^A-Z0-9]+", " ", chave)
+    return re.sub(r"\s+", " ", chave).strip()
+
+
+def _referencias_equivalentes(a: str, b: str) -> bool:
+    chave_a = _chave_referencia(a)
+    chave_b = _chave_referencia(b)
+    if not chave_a or not chave_b:
+        return False
+    if chave_a == chave_b:
+        return True
+    if chave_a in chave_b or chave_b in chave_a:
+        return min(len(chave_a), len(chave_b)) / max(len(chave_a), len(chave_b)) >= 0.75
+    return SequenceMatcher(None, chave_a, chave_b).ratio() >= 0.88
+
+
+def distancia_haversine_km(a: PontoItinerario, b: PontoItinerario) -> float:
+    raio = 6371.0088
+    lat1 = math.radians(a.lat)
+    lat2 = math.radians(b.lat)
+    dlat = lat2 - lat1
+    dlon = math.radians(b.lon - a.lon)
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 2 * raio * math.asin(min(1.0, math.sqrt(h)))
+
+
+def reconciliar_extremos(trechos: dict[str, TrechoImportado]) -> list[str]:
+    ida = trechos["IDA"].pontos
+    volta = trechos["VOLTA"].pontos
+    avisos: list[str] = []
+
+    pares = (
+        (ida[-1], volta[0], "término da IDA / início da VOLTA"),
+        (ida[0], volta[-1], "início da IDA / término da VOLTA"),
+    )
+    for referencia, candidato, descricao in pares:
+        distancia = distancia_haversine_km(referencia, candidato)
+        if _referencias_equivalentes(referencia.referencia, candidato.referencia):
+            if distancia > 0.25:
+                lat_antiga, lon_antiga = candidato.lat, candidato.lon
+                candidato.lat = referencia.lat
+                candidato.lon = referencia.lon
+                avisos.append(
+                    f"{descricao}: a mesma referência aparecia com coordenadas separadas por "
+                    f"{distancia:.1f} km. O ponto ({lat_antiga:.6f}, {lon_antiga:.6f}) foi "
+                    f"alinhado para ({candidato.lat:.6f}, {candidato.lon:.6f}) antes do roteamento."
+                )
+        elif distancia > 5.0:
+            avisos.append(
+                f"{descricao}: os extremos estão separados por {distancia:.1f} km e têm referências "
+                "diferentes. Confira a prévia antes de salvar."
+            )
+    return avisos
+
+
+def _distancia_declarada_km(direcao: str) -> float | None:
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s*KM\b", direcao or "", flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return float(match.group(1).replace(",", "."))
+    except ValueError:
+        return None
+
+
 def roteamento_osrm(
     pontos: list[PontoItinerario],
     base_url: str = "https://router.project-osrm.org",
     timeout: int = 45,
-) -> tuple[dict[str, Any], float, float]:
+) -> tuple[dict[str, Any], float, float, list[float]]:
     coordenadas = ";".join(f"{p.lon:.6f},{p.lat:.6f}" for p in pontos)
     url = f"{base_url.rstrip('/')}/route/v1/driving/{coordenadas}"
     resposta = requests.get(
@@ -243,6 +356,7 @@ def roteamento_osrm(
             "geometries": "geojson",
             "steps": "false",
         },
+        headers={"User-Agent": "WebSIG-SEMED/1.0"},
         timeout=timeout,
     )
     resposta.raise_for_status()
@@ -255,7 +369,37 @@ def roteamento_osrm(
     geometria = rota.get("geometry")
     if not geometria or geometria.get("type") != "LineString":
         raise ValueError("O roteador retornou uma geometria inválida.")
-    return geometria, float(rota.get("distance", 0.0)) / 1000.0, float(rota.get("duration", 0.0)) / 60.0
+
+    pernas = [
+        round(float(perna.get("distance", 0.0)) / 1000.0, 3)
+        for perna in (rota.get("legs") or [])
+    ]
+    if pernas and len(pernas) != len(pontos) - 1:
+        raise ValueError("O roteador retornou uma quantidade inesperada de segmentos.")
+
+    return (
+        geometria,
+        float(rota.get("distance", 0.0)) / 1000.0,
+        float(rota.get("duration", 0.0)) / 60.0,
+        pernas,
+    )
+
+
+def _avisos_distancias_pontos(nome: str, trecho: TrechoImportado) -> list[str]:
+    avisos: list[str] = []
+    for indice, distancia_roteada in enumerate(trecho.distancias_entre_pontos_km):
+        ponto = trecho.pontos[indice]
+        declarada = _distancia_declarada_km(ponto.direcao_seguir)
+        if declarada is None or declarada <= 0:
+            continue
+        diferenca_abs = abs(distancia_roteada - declarada)
+        diferenca_rel = diferenca_abs / declarada
+        if diferenca_abs >= 1.0 and diferenca_rel >= 0.50:
+            avisos.append(
+                f"{nome}, ponto {ponto.ordem}: o memorial informa {declarada:.3f} km até o "
+                f"próximo ponto, enquanto o roteador calculou {distancia_roteada:.3f} km."
+            )
+    return avisos
 
 
 def importar_docx(
@@ -268,8 +412,10 @@ def importar_docx(
     trechos = extrair_itinerarios(documento)
 
     avisos = list(metadados.avisos)
-    for trecho in trechos.values():
-        geometria, distancia, duracao = roteamento_osrm(
+    alertas_geometria = reconciliar_extremos(trechos)
+
+    for nome, trecho in trechos.items():
+        geometria, distancia, duracao, pernas = roteamento_osrm(
             trecho.pontos,
             base_url=osrm_base_url,
             timeout=timeout,
@@ -277,6 +423,8 @@ def importar_docx(
         trecho.geometria = geometria
         trecho.distancia_roteada_km = round(distancia, 3)
         trecho.duracao_roteada_min = round(duracao, 1)
+        trecho.distancias_entre_pontos_km = pernas
+        alertas_geometria.extend(_avisos_distancias_pontos(nome, trecho))
 
     km_ida = float(metadados.km_ida) if metadados.km_ida is not None else None
     km_volta = float(metadados.km_volta) if metadados.km_volta is not None else None
@@ -286,7 +434,7 @@ def importar_docx(
         if km_doc and km_roteada:
             diferenca = abs(km_roteada - km_doc) / km_doc
             if diferenca >= 0.15:
-                avisos.append(
+                alertas_geometria.append(
                     f"{nome}: a rota calculada ({km_roteada:.2f} km) difere "
                     f"{diferenca * 100:.0f}% da quilometragem do memorial ({km_doc:.2f} km)."
                 )
@@ -300,6 +448,7 @@ def importar_docx(
         km_volta_documento=km_volta,
         trechos=trechos,
         avisos=avisos,
+        alertas_geometria=alertas_geometria,
     )
 
 
@@ -314,40 +463,69 @@ def salvar_upload_temporario(arquivo) -> Path:
 
 
 def pontos_para_json(pontos: list[dict[str, Any]]) -> str:
-    campos = (
-        "ordem",
-        "referencia",
-        "coordenadas",
-        "lat",
-        "lon",
-        "lado_via",
-        "logradouro",
-        "direcao_seguir",
-    )
-    normalizados: list[dict[str, Any]] = []
-    for ponto in pontos:
-        normalizado = {campo: ponto.get(campo, "") for campo in campos}
-        normalizado["ordem"] = int(normalizado["ordem"])
-        normalizado["lat"] = float(normalizado["lat"])
-        normalizado["lon"] = float(normalizado["lon"])
-        if not (-90 <= normalizado["lat"] <= 90 and -180 <= normalizado["lon"] <= 180):
-            raise ValueError("Há coordenadas fora dos limites válidos.")
-        normalizados.append(normalizado)
-    if len(normalizados) < 2:
+    if not isinstance(pontos, list) or len(pontos) < 2:
         raise ValueError("Cada trecho precisa ter pelo menos dois pontos.")
+    if len(pontos) > MAX_PONTOS_POR_TRECHO:
+        raise ValueError(f"Cada trecho pode ter no máximo {MAX_PONTOS_POR_TRECHO} pontos.")
+
+    campos_texto = ("referencia", "lado_via", "logradouro", "direcao_seguir")
+    normalizados: list[dict[str, Any]] = []
+    ordens: set[int] = set()
+
+    for ponto in pontos:
+        ordem = int(ponto.get("ordem"))
+        if ordem in ordens:
+            raise ValueError("Há números de ponto repetidos.")
+        ordens.add(ordem)
+
+        lat = float(ponto.get("lat"))
+        lon = float(ponto.get("lon"))
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError("Há coordenadas fora dos limites válidos.")
+
+        normalizado: dict[str, Any] = {
+            "ordem": ordem,
+            "coordenadas": f"({lat:.6f}, {lon:.6f})",
+            "lat": lat,
+            "lon": lon,
+        }
+        for campo in campos_texto:
+            normalizado[campo] = texto_limpo(ponto.get(campo))
+        if not normalizado["referencia"]:
+            raise ValueError(f"O ponto {ordem} não possui referência.")
+        normalizados.append(normalizado)
+
+    normalizados.sort(key=lambda item: item["ordem"])
     return json.dumps(normalizados, ensure_ascii=False)
 
 
-def validar_geojson_linha(geometria: Any) -> str:
+def validar_geojson_linha(
+    geometria: Any,
+    pontos: list[dict[str, Any]] | None = None,
+) -> str:
     if not isinstance(geometria, dict) or geometria.get("type") != "LineString":
         raise ValueError("Geometria de rota inválida.")
     coords = geometria.get("coordinates")
     if not isinstance(coords, list) or len(coords) < 2:
         raise ValueError("A rota precisa ter pelo menos dois vértices.")
+    if len(coords) > MAX_VERTICES_GEOMETRIA:
+        raise ValueError("A geometria excede o limite de vértices permitido.")
+
     for coordenada in coords:
-        if not isinstance(coordenada, list) or len(coordenada) < 2:
+        if not isinstance(coordenada, (list, tuple)) or len(coordenada) < 2:
             raise ValueError("Vértice inválido na geometria.")
         lon, lat = float(coordenada[0]), float(coordenada[1])
         if not (-180 <= lon <= 180 and -90 <= lat <= 90):
             raise ValueError("A geometria possui coordenadas fora dos limites válidos.")
+
+    if pontos:
+        primeiro = PontoItinerario(1, "", float(pontos[0]["lat"]), float(pontos[0]["lon"]))
+        ultimo = PontoItinerario(2, "", float(pontos[-1]["lat"]), float(pontos[-1]["lon"]))
+        geom_inicio = PontoItinerario(1, "", float(coords[0][1]), float(coords[0][0]))
+        geom_fim = PontoItinerario(2, "", float(coords[-1][1]), float(coords[-1][0]))
+        if distancia_haversine_km(primeiro, geom_inicio) > 5.0:
+            raise ValueError("O início da geometria está distante do primeiro ponto do memorial.")
+        if distancia_haversine_km(ultimo, geom_fim) > 5.0:
+            raise ValueError("O fim da geometria está distante do último ponto do memorial.")
+
     return json.dumps(geometria, ensure_ascii=False)
