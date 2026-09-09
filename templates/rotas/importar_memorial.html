@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar memorial — WebSIG SEMED</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17202a; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f5f7fa; }
+        header { background: #fff; border-bottom: 1px solid #dce3ea; padding: 18px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        header h1 { margin: 0; font-size: 1.2rem; }
+        header a { color: #155eef; text-decoration: none; font-weight: 600; }
+        main { max-width: 1180px; margin: 24px auto; padding: 0 20px 40px; }
+        .card { background: #fff; border: 1px solid #dce3ea; border-radius: 14px; padding: 20px; margin-bottom: 18px; box-shadow: 0 4px 16px rgba(16, 24, 40, .04); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        .campo { background: #f8fafc; border-radius: 10px; padding: 12px; }
+        .campo small { display: block; color: #667085; margin-bottom: 4px; }
+        .campo strong { word-break: break-word; }
+        .acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        button { border: 0; border-radius: 9px; padding: 11px 16px; cursor: pointer; font-weight: 700; font: inherit; }
+        button.primario { background: #155eef; color: #fff; }
+        button.sucesso { background: #067647; color: #fff; }
+        button:disabled { opacity: .55; cursor: wait; }
+        input[type=file] { width: 100%; padding: 12px; border: 1px dashed #98a2b3; border-radius: 10px; background: #f8fafc; }
+        #mapa { height: 520px; border-radius: 12px; border: 1px solid #d0d5dd; }
+        .oculto { display: none !important; }
+        .status { margin-top: 12px; padding: 12px; border-radius: 10px; background: #eef4ff; }
+        .erro { background: #fef3f2; color: #b42318; }
+        .sucesso-msg { background: #ecfdf3; color: #067647; }
+        .avisos { margin: 12px 0 0; padding-left: 20px; color: #7a2e0e; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding: 9px 10px; border-bottom: 1px solid #eaecf0; text-align: left; font-size: .92rem; }
+        th { color: #475467; }
+        .legenda { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; font-size: .92rem; }
+        .ponto-cor { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .ida { background: #155eef; }
+        .volta { background: #d92d20; }
+        @media (max-width: 720px) { #mapa { height: 420px; } header { align-items: flex-start; flex-direction: column; } }
+    </style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>Importar rota a partir de memorial</h1>
+        <div style="color:#667085;font-size:.92rem;margin-top:4px">DOCX → pontos notáveis → roteamento viário → PostGIS</div>
+    </div>
+    <a href="{{ url_for('home.home') }}">← Voltar ao WebSIG</a>
+</header>
+
+<main>
+    <section class="card">
+        <h2 style="margin-top:0">1. Selecione o memorial</h2>
+        <p>Use o memorial DOCX no padrão da SEMED. O sistema não altera o banco antes da confirmação.</p>
+        <form id="form-upload" class="acoes">
+            <input id="memorial" name="memorial" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+            <button id="btn-preview" class="primario" type="submit">Ler memorial e gerar prévia</button>
+        </form>
+        <div id="status" class="status oculto"></div>
+    </section>
+
+    <section id="resumo" class="card oculto">
+        <h2 style="margin-top:0">2. Conferência</h2>
+        <div id="campos" class="grid"></div>
+        <ul id="avisos" class="avisos oculto"></ul>
+        <div id="registros"></div>
+    </section>
+
+    <section id="mapa-card" class="card oculto">
+        <h2 style="margin-top:0">3. Prévia no mapa</h2>
+        <div class="legenda">
+            <span><span class="ponto-cor ida"></span>IDA</span>
+            <span><span class="ponto-cor volta"></span>VOLTA</span>
+        </div>
+        <div id="mapa"></div>
+    </section>
+
+    <section id="salvar-card" class="card oculto">
+        <h2 style="margin-top:0">4. Salvar no WebSIG</h2>
+        <p>Ao confirmar, IDA e VOLTA são gravadas na mesma transação. Se qualquer trecho falhar, nenhuma alteração é confirmada.</p>
+        <button id="btn-salvar" class="sucesso" type="button">Confirmar e salvar rota</button>
+    </section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const form = document.getElementById('form-upload');
+    const arquivo = document.getElementById('memorial');
+    const statusBox = document.getElementById('status');
+    const btnPreview = document.getElementById('btn-preview');
+    const btnSalvar = document.getElementById('btn-salvar');
+    const resumo = document.getElementById('resumo');
+    const mapaCard = document.getElementById('mapa-card');
+    const salvarCard = document.getElementById('salvar-card');
+    let rotaAtual = null;
+    let mapa = null;
+    let grupo = null;
+
+    function status(texto, tipo = '') {
+        statusBox.textContent = texto;
+        statusBox.className = `status ${tipo}`.trim();
+    }
+
+    function formatarKm(valor) {
+        return valor == null ? '—' : `${Number(valor).toFixed(2)} km`;
+    }
+
+    function montarResumo(rota) {
+        const campos = document.getElementById('campos');
+        const ida = rota.trechos.IDA;
+        const volta = rota.trechos.VOLTA;
+        const itens = [
+            ['Rota', rota.nome_rota],
+            ['Número da linha', rota.numero_linha],
+            ['Região', rota.regiao || '—'],
+            ['Linha', rota.linha || '—'],
+            ['Pontos IDA', ida.pontos.length],
+            ['Pontos VOLTA', volta.pontos.length],
+            ['Km memorial IDA', formatarKm(rota.km_ida_documento)],
+            ['Km calculado IDA', formatarKm(ida.distancia_roteada_km)],
+            ['Km memorial VOLTA', formatarKm(rota.km_volta_documento)],
+            ['Km calculado VOLTA', formatarKm(volta.distancia_roteada_km)],
+        ];
+        campos.innerHTML = itens.map(([rotulo, valor]) =>
+            `<div class="campo"><small>${rotulo}</small><strong>${String(valor)}</strong></div>`
+        ).join('');
+
+        const avisos = document.getElementById('avisos');
+        if (rota.avisos && rota.avisos.length) {
+            avisos.innerHTML = rota.avisos.map(item => `<li>${item}</li>`).join('');
+            avisos.classList.remove('oculto');
+        } else {
+            avisos.innerHTML = '';
+            avisos.classList.add('oculto');
+        }
+
+        const registros = document.getElementById('registros');
+        if (rota.registros_existentes && rota.registros_existentes.length) {
+            registros.innerHTML = `
+                <h3>Registros existentes que serão atualizados</h3>
+                <table>
+                    <thead><tr><th>ID</th><th>Trecho</th><th>Pontos atuais</th><th>Vértices atuais</th></tr></thead>
+                    <tbody>${rota.registros_existentes.map(r => `<tr><td>${r.id}</td><td>${r.trecho}</td><td>${r.total_pontos ?? '—'}</td><td>${r.vertices ?? '—'}</td></tr>`).join('')}</tbody>
+                </table>`;
+        } else {
+            registros.innerHTML = '<p><strong>Nova rota:</strong> não foram encontrados registros com esse nome; IDA e VOLTA serão criadas.</p>';
+        }
+    }
+
+    function montarMapa(rota) {
+        if (!mapa) {
+            mapa = L.map('mapa');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(mapa);
+        }
+        if (grupo) grupo.remove();
+        grupo = L.featureGroup().addTo(mapa);
+
+        const estilos = {
+            IDA: { color: '#155eef', weight: 5, opacity: .85 },
+            VOLTA: { color: '#d92d20', weight: 5, opacity: .78 }
+        };
+
+        for (const nome of ['IDA', 'VOLTA']) {
+            const trecho = rota.trechos[nome];
+            L.geoJSON(trecho.geometria, { style: estilos[nome] }).bindPopup(`${nome} · ${formatarKm(trecho.distancia_roteada_km)}`).addTo(grupo);
+            trecho.pontos.forEach(p => {
+                L.circleMarker([p.lat, p.lon], { radius: 4, color: estilos[nome].color, fillOpacity: .9 })
+                    .bindPopup(`<strong>${nome} · ${p.ordem}</strong><br>${p.referencia}`)
+                    .addTo(grupo);
+            });
+        }
+
+        mapa.fitBounds(grupo.getBounds(), { padding: [24, 24] });
+        setTimeout(() => mapa.invalidateSize(), 50);
+    }
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        rotaAtual = null;
+        resumo.classList.add('oculto');
+        mapaCard.classList.add('oculto');
+        salvarCard.classList.add('oculto');
+
+        if (!arquivo.files.length) return;
+        btnPreview.disabled = true;
+        status('Lendo o memorial e calculando IDA/VOLTA pelas vias. Isso pode levar alguns segundos...');
+
+        try {
+            const corpo = new FormData();
+            corpo.append('memorial', arquivo.files[0]);
+            const resposta = await fetch('{{ url_for("rotas.preview_importacao_memorial") }}', { method: 'POST', body: corpo });
+            const dados = await resposta.json();
+            if (!resposta.ok || !dados.sucesso) throw new Error(dados.erro || 'Falha ao processar o memorial.');
+
+            rotaAtual = dados.rota;
+            montarResumo(rotaAtual);
+            resumo.classList.remove('oculto');
+            mapaCard.classList.remove('oculto');
+            salvarCard.classList.remove('oculto');
+            montarMapa(rotaAtual);
+            status('Prévia gerada. Confira o mapa antes de salvar.', 'sucesso-msg');
+        } catch (erro) {
+            status(erro.message || 'Erro ao gerar a prévia.', 'erro');
+        } finally {
+            btnPreview.disabled = false;
+        }
+    });
+
+    btnSalvar.addEventListener('click', async () => {
+        if (!rotaAtual) return;
+        if (!confirm(`Confirmar a gravação de ${rotaAtual.nome_rota} no WebSIG?`)) return;
+
+        btnSalvar.disabled = true;
+        status('Salvando IDA e VOLTA no PostGIS...');
+        try {
+            const resposta = await fetch('{{ url_for("rotas.salvar_importacao_memorial") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rota: rotaAtual })
+            });
+            const dados = await resposta.json();
+            if (!resposta.ok || !dados.sucesso) throw new Error(dados.erro || 'Falha ao salvar a rota.');
+            const ids = dados.registros.map(r => `${r.trecho}: ID ${r.id} (${r.vertices} vértices)`).join(' · ');
+            status(`${dados.mensagem} ${ids}`, 'sucesso-msg');
+        } catch (erro) {
+            status(erro.message || 'Erro ao salvar a rota.', 'erro');
+        } finally {
+            btnSalvar.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
