@@ -1,13 +1,16 @@
-"""criar tabela de dados dos memoriais das rotas
+"""garantir tabela de dados dos memoriais das rotas
 
 Revision ID: d4c8a6f8e210
 Revises: c41b7d29a6ef
 Create Date: 2026-09-09
+
+A tabela rotas_memoriais já pode existir em instalações anteriores porque
+ela era consumida pelo gerador de memoriais sem ter sido criada pelo
+Alembic. Por isso esta migração é deliberadamente compatível com bancos
+legados: cria a tabela quando ausente e acrescenta apenas colunas faltantes.
 """
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = "d4c8a6f8e210"
 down_revision = "c41b7d29a6ef"
@@ -16,56 +19,54 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "rotas_memoriais",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("codigo_rota", sa.String(length=100), nullable=False),
-        sa.Column("numero_linha", sa.String(length=100), nullable=True),
-        sa.Column("linha", sa.Text(), nullable=True),
-        sa.Column("km_ida", sa.Numeric(10, 3), nullable=True),
-        sa.Column("km_volta", sa.Numeric(10, 3), nullable=True),
-        sa.Column("turnos_ativos", postgresql.JSONB(), nullable=False, server_default=sa.text("'[]'::jsonb")),
-        sa.Column("horarios", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
-        sa.Column("tipo_veiculo", sa.String(length=100), nullable=True),
-        sa.Column("quantidade_veiculos", sa.Integer(), nullable=True),
-        sa.Column("onibus_pcd", sa.Boolean(), nullable=True),
-        sa.Column("inicio", sa.Text(), nullable=True),
-        sa.Column("termino", sa.Text(), nullable=True),
-        sa.Column("rede_ensino", sa.String(length=100), nullable=True),
-        sa.Column("redes_ensino", postgresql.JSONB(), nullable=False, server_default=sa.text("'[]'::jsonb")),
-        sa.Column("localizacao", sa.String(length=500), nullable=True),
-        sa.Column("areas", postgresql.JSONB(), nullable=False, server_default=sa.text("'[]'::jsonb")),
-        sa.Column("intermunicipal", sa.Boolean(), nullable=True),
-        sa.Column("assistente_mobilidade", sa.Boolean(), nullable=True),
-        sa.Column("assistente_nome", sa.String(length=250), nullable=True),
-        sa.Column("veiculo_placa", sa.String(length=150), nullable=True),
-        sa.Column("motorista", sa.String(length=250), nullable=True),
-        sa.Column("contato", sa.String(length=150), nullable=True),
-        sa.Column("escolas_atendidas", postgresql.JSONB(), nullable=False, server_default=sa.text("'[]'::jsonb")),
-        sa.Column("observacao", sa.Text(), nullable=True),
-        sa.Column("responsavel_tecnico", sa.String(length=250), nullable=True),
-        sa.Column("crea", sa.String(length=150), nullable=True),
-        sa.Column("executora", sa.String(length=250), nullable=True),
-        sa.Column("criado_em", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("atualizado_em", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.UniqueConstraint("codigo_rota", name="uq_rotas_memoriais_codigo_rota"),
-        sa.CheckConstraint("quantidade_veiculos IS NULL OR quantidade_veiculos > 0", name="ck_rotas_memoriais_quantidade_veiculos"),
-        schema="semed",
-    )
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS semed.rotas_memoriais (
+            id SERIAL PRIMARY KEY,
+            codigo_rota VARCHAR(100) NOT NULL
+        )
+    """)
 
-    op.create_index(
-        "ix_rotas_memoriais_codigo_rota",
-        "rotas_memoriais",
-        ["codigo_rota"],
-        unique=True,
-        schema="semed",
-    )
+    comandos = [
+        "ADD COLUMN IF NOT EXISTS numero_linha VARCHAR(100)",
+        "ADD COLUMN IF NOT EXISTS linha TEXT",
+        "ADD COLUMN IF NOT EXISTS km_ida NUMERIC(10,3)",
+        "ADD COLUMN IF NOT EXISTS km_volta NUMERIC(10,3)",
+        "ADD COLUMN IF NOT EXISTS turnos_ativos JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ADD COLUMN IF NOT EXISTS horarios JSONB NOT NULL DEFAULT '{}'::jsonb",
+        "ADD COLUMN IF NOT EXISTS tipo_veiculo VARCHAR(100)",
+        "ADD COLUMN IF NOT EXISTS quantidade_veiculos INTEGER",
+        "ADD COLUMN IF NOT EXISTS onibus_pcd BOOLEAN",
+        "ADD COLUMN IF NOT EXISTS inicio TEXT",
+        "ADD COLUMN IF NOT EXISTS termino TEXT",
+        "ADD COLUMN IF NOT EXISTS rede_ensino VARCHAR(100)",
+        "ADD COLUMN IF NOT EXISTS redes_ensino JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ADD COLUMN IF NOT EXISTS localizacao VARCHAR(500)",
+        "ADD COLUMN IF NOT EXISTS areas JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ADD COLUMN IF NOT EXISTS intermunicipal BOOLEAN",
+        "ADD COLUMN IF NOT EXISTS assistente_mobilidade BOOLEAN",
+        "ADD COLUMN IF NOT EXISTS assistente_nome VARCHAR(250)",
+        "ADD COLUMN IF NOT EXISTS veiculo_placa VARCHAR(150)",
+        "ADD COLUMN IF NOT EXISTS motorista VARCHAR(250)",
+        "ADD COLUMN IF NOT EXISTS contato VARCHAR(150)",
+        "ADD COLUMN IF NOT EXISTS escolas_atendidas JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ADD COLUMN IF NOT EXISTS observacao TEXT",
+        "ADD COLUMN IF NOT EXISTS responsavel_tecnico VARCHAR(250)",
+        "ADD COLUMN IF NOT EXISTS crea VARCHAR(150)",
+        "ADD COLUMN IF NOT EXISTS executora VARCHAR(250)",
+        "ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+        "ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    ]
+
+    for comando in comandos:
+        op.execute(f"ALTER TABLE semed.rotas_memoriais {comando}")
+
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_rotas_memoriais_codigo_rota
+        ON semed.rotas_memoriais (codigo_rota)
+    """)
 
 
 def downgrade():
-    op.drop_index(
-        "ix_rotas_memoriais_codigo_rota",
-        table_name="rotas_memoriais",
-        schema="semed",
-    )
-    op.drop_table("rotas_memoriais", schema="semed")
+    # Não removemos a tabela nem colunas porque rotas_memoriais pode ser
+    # anterior a esta migração e conter dados produzidos em versões legadas.
+    pass
