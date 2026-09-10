@@ -264,13 +264,16 @@ def extrair_itinerarios(documento: Document) -> dict[str, TrechoImportado]:
     finalizar_ponto()
 
     for nome, trecho in trechos.items():
-        if len(trecho.pontos) < 2:
-            raise ValueError(f"O trecho {nome} precisa ter pelo menos dois pontos com coordenadas.")
         if len(trecho.pontos) > MAX_PONTOS_POR_TRECHO:
             raise ValueError(f"O trecho {nome} excede o limite de {MAX_PONTOS_POR_TRECHO} pontos.")
         ordens = [p.ordem for p in trecho.pontos]
         if len(ordens) != len(set(ordens)):
             raise ValueError(f"Há números de ponto repetidos no trecho {nome}.")
+
+    if not any(len(trecho.pontos) >= 2 for trecho in trechos.values()):
+        raise ValueError(
+            "O memorial precisa ter pelo menos um trecho (IDA ou VOLTA) com dois pontos coordenados."
+        )
 
     return trechos
 
@@ -307,6 +310,9 @@ def reconciliar_extremos(trechos: dict[str, TrechoImportado]) -> list[str]:
     ida = trechos["IDA"].pontos
     volta = trechos["VOLTA"].pontos
     avisos: list[str] = []
+
+    if not ida or not volta:
+        return avisos
 
     pares = (
         (ida[-1], volta[0], "término da IDA / início da VOLTA"),
@@ -415,6 +421,13 @@ def importar_docx(
     alertas_geometria = reconciliar_extremos(trechos)
 
     for nome, trecho in trechos.items():
+        if len(trecho.pontos) < 2:
+            avisos.append(
+                f"{nome}: o memorial possui {len(trecho.pontos)} ponto(s) coordenado(s). "
+                "Esse trecho não será recalculado nem sobrescrito; se já existir no WebSIG, será preservado."
+            )
+            continue
+
         geometria, distancia, duracao, pernas = roteamento_osrm(
             trecho.pontos,
             base_url=osrm_base_url,
@@ -464,7 +477,7 @@ def salvar_upload_temporario(arquivo) -> Path:
 
 def pontos_para_json(pontos: list[dict[str, Any]]) -> str:
     if not isinstance(pontos, list) or len(pontos) < 2:
-        raise ValueError("Cada trecho precisa ter pelo menos dois pontos.")
+        raise ValueError("Cada trecho salvo precisa ter pelo menos dois pontos.")
     if len(pontos) > MAX_PONTOS_POR_TRECHO:
         raise ValueError(f"Cada trecho pode ter no máximo {MAX_PONTOS_POR_TRECHO} pontos.")
 
