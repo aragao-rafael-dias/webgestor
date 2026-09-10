@@ -33,6 +33,6 @@ def upgrade():
 
 
 def downgrade():
-    -- Não restauramos NOT NULL automaticamente porque podem existir
-    -- registros com valor nulo após a atualização.
+    # Não restauramos NOT NULL automaticamente porque podem existir
+    # registros com valor nulo após a atualização.
     pass
