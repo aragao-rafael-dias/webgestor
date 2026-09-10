@@ -119,40 +119,14 @@ SQL_CONTAR_MEMORIAL = text("""
 """)
 
 CAMPOS_MEMORIAL = (
-    "numero_linha",
-    "linha",
-    "km_ida",
-    "km_volta",
-    "turnos_ativos",
-    "horarios",
-    "tipo_veiculo",
-    "quantidade_veiculos",
-    "onibus_pcd",
-    "inicio",
-    "termino",
-    "rede_ensino",
-    "redes_ensino",
-    "localizacao",
-    "areas",
-    "intermunicipal",
-    "assistente_mobilidade",
-    "assistente_nome",
-    "veiculo_placa",
-    "motorista",
-    "contato",
-    "escolas_atendidas",
-    "observacao",
-    "responsavel_tecnico",
-    "crea",
+    "numero_linha", "linha", "km_ida", "km_volta", "turnos_ativos", "horarios",
+    "tipo_veiculo", "quantidade_veiculos", "onibus_pcd", "inicio", "termino",
+    "rede_ensino", "redes_ensino", "localizacao", "areas", "intermunicipal",
+    "assistente_mobilidade", "assistente_nome", "veiculo_placa", "motorista",
+    "contato", "escolas_atendidas", "observacao", "responsavel_tecnico", "crea",
     "executora",
 )
-CAMPOS_JSON_MEMORIAL = {
-    "turnos_ativos",
-    "horarios",
-    "redes_ensino",
-    "areas",
-    "escolas_atendidas",
-}
+CAMPOS_JSON_MEMORIAL = {"turnos_ativos", "horarios", "redes_ensino", "areas", "escolas_atendidas"}
 TURNOS_VALIDOS = ("MANHÃ", "TARDE", "NOITE", "INTEGRAL")
 
 
@@ -162,25 +136,14 @@ def _somente_admin() -> None:
 
 
 def _existentes_para_json(nome_rota: str) -> list[dict]:
-    linhas = db.session.execute(
-        SQL_ROTAS_EXISTENTES,
-        {"nome_rota": nome_rota},
-    ).mappings().all()
+    linhas = db.session.execute(SQL_ROTAS_EXISTENTES, {"nome_rota": nome_rota}).mappings().all()
     return [dict(linha) for linha in linhas]
 
 
 def _id_trecho_existente(nome_rota: str, trecho: str) -> int | None:
-    ids = list(
-        db.session.execute(
-            SQL_BUSCAR_IDS_TRECHO,
-            {"nome_rota": nome_rota, "trecho": trecho},
-        ).scalars()
-    )
+    ids = list(db.session.execute(SQL_BUSCAR_IDS_TRECHO, {"nome_rota": nome_rota, "trecho": trecho}).scalars())
     if len(ids) > 1:
-        raise ValueError(
-            f"Existem {len(ids)} registros de {trecho} para {nome_rota}. "
-            "Corrija a duplicidade antes de importar o memorial."
-        )
+        raise ValueError(f"Existem {len(ids)} registros de {trecho} para {nome_rota}. Corrija a duplicidade antes de importar o memorial.")
     return int(ids[0]) if ids else None
 
 
@@ -225,41 +188,29 @@ def _texto(valor: Any, limite: int = 2000) -> str:
 
 
 def _booleano_opcional(valor: Any) -> bool | None:
-    if valor is None or valor == "":
-        return None
-    if isinstance(valor, bool):
-        return valor
+    if valor is None or valor == "": return None
+    if isinstance(valor, bool): return valor
     texto_valor = str(valor).strip().lower()
-    if texto_valor in {"1", "true", "sim", "s", "yes", "on"}:
-        return True
-    if texto_valor in {"0", "false", "não", "nao", "n", "no", "off"}:
-        return False
+    if texto_valor in {"1", "true", "sim", "s", "yes", "on"}: return True
+    if texto_valor in {"0", "false", "não", "nao", "n", "no", "off"}: return False
     raise ValueError(f"Valor booleano inválido: {valor}.")
 
 
 def _lista_textos(valor: Any, limite_itens: int = 100) -> list[str]:
-    if not isinstance(valor, list):
-        return []
-    resultado: list[str] = []
-    vistos: set[str] = set()
+    if not isinstance(valor, list): return []
+    resultado: list[str] = []; vistos: set[str] = set()
     for item in valor[:limite_itens]:
-        texto_item = _texto(item, 500)
-        chave = texto_item.casefold()
+        texto_item = _texto(item, 500); chave = texto_item.casefold()
         if texto_item and chave not in vistos:
-            resultado.append(texto_item)
-            vistos.add(chave)
+            resultado.append(texto_item); vistos.add(chave)
     return resultado
 
 
 def _numero_opcional(valor: Any, nome: str) -> float | None:
-    if valor in (None, ""):
-        return None
-    try:
-        numero = float(str(valor).replace(",", "."))
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{nome} precisa ser um número válido.") from exc
-    if numero < 0:
-        raise ValueError(f"{nome} não pode ser negativo.")
+    if valor in (None, ""): return None
+    try: numero = float(str(valor).replace(",", "."))
+    except (TypeError, ValueError) as exc: raise ValueError(f"{nome} precisa ser um número válido.") from exc
+    if numero < 0: raise ValueError(f"{nome} não pode ser negativo.")
     return round(numero, 3)
 
 
@@ -267,323 +218,157 @@ def _normalizar_metadados_recebidos(rota: dict[str, Any]) -> dict[str, Any]:
     origem = rota.get("metadados") or {}
     numero_linha = _texto(rota.get("numero_linha") or origem.get("numero_linha"), 100)
     linha = _texto(origem.get("linha") or rota.get("linha"), 1000)
-
     quantidade = origem.get("quantidade_veiculos")
-    if quantidade in (None, ""):
-        quantidade_normalizada = None
+    if quantidade in (None, ""): quantidade_normalizada = None
     else:
-        try:
-            quantidade_normalizada = int(quantidade)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("Quantidade de veículos precisa ser um número inteiro.") from exc
-        if not 1 <= quantidade_normalizada <= 99:
-            raise ValueError("Quantidade de veículos deve ficar entre 1 e 99.")
-
-    turnos = [
-        turno
-        for turno in _lista_textos(origem.get("turnos_ativos"), 4)
-        if turno.upper() in TURNOS_VALIDOS
-    ]
-    turnos = [turno.upper() for turno in turnos]
-
+        try: quantidade_normalizada = int(quantidade)
+        except (TypeError, ValueError) as exc: raise ValueError("Quantidade de veículos precisa ser um número inteiro.") from exc
+        if not 1 <= quantidade_normalizada <= 99: raise ValueError("Quantidade de veículos deve ficar entre 1 e 99.")
+    turnos = [turno.upper() for turno in _lista_textos(origem.get("turnos_ativos"), 4) if turno.upper() in TURNOS_VALIDOS]
     horarios_origem = origem.get("horarios") if isinstance(origem.get("horarios"), dict) else {}
     horarios: dict[str, dict[str, str]] = {}
     for turno in TURNOS_VALIDOS:
         item = horarios_origem.get(turno) or {}
-        if not isinstance(item, dict):
-            continue
-        horarios[turno] = {
-            "horario": _texto(item.get("horario"), 20),
-            "inicio_aulas": _texto(item.get("inicio_aulas"), 20),
-            "termino_aulas": _texto(item.get("termino_aulas"), 20),
-        }
-
+        if not isinstance(item, dict): continue
+        horarios[turno] = {"horario": _texto(item.get("horario"), 20), "inicio_aulas": _texto(item.get("inicio_aulas"), 20), "termino_aulas": _texto(item.get("termino_aulas"), 20)}
     redes = [item.upper() for item in _lista_textos(origem.get("redes_ensino"), 10)]
     areas = [item.upper() for item in _lista_textos(origem.get("areas"), 10)]
-
     return {
-        "numero_linha": numero_linha,
-        "linha": linha,
+        "numero_linha": numero_linha, "linha": linha,
         "km_ida": _numero_opcional(origem.get("km_ida"), "Km IDA"),
         "km_volta": _numero_opcional(origem.get("km_volta"), "Km VOLTA"),
-        "turnos_ativos": turnos,
-        "horarios": horarios,
+        "turnos_ativos": turnos, "horarios": horarios,
         "tipo_veiculo": _texto(origem.get("tipo_veiculo"), 100).upper(),
         "quantidade_veiculos": quantidade_normalizada,
         "onibus_pcd": _booleano_opcional(origem.get("onibus_pcd")),
-        "inicio": _texto(origem.get("inicio"), 1000),
-        "termino": _texto(origem.get("termino"), 1000),
-        "rede_ensino": redes[0] if redes else "",
-        "redes_ensino": redes,
-        "localizacao": _texto(origem.get("localizacao"), 500),
-        "areas": areas,
+        "inicio": _texto(origem.get("inicio"), 1000), "termino": _texto(origem.get("termino"), 1000),
+        "rede_ensino": redes[0] if redes else "", "redes_ensino": redes,
+        "localizacao": _texto(origem.get("localizacao"), 500), "areas": areas,
         "intermunicipal": _booleano_opcional(origem.get("intermunicipal")),
         "assistente_mobilidade": _booleano_opcional(origem.get("assistente_mobilidade")),
         "assistente_nome": _texto(origem.get("assistente_nome"), 250),
-        "veiculo_placa": _texto(origem.get("veiculo_placa"), 150),
-        "motorista": _texto(origem.get("motorista"), 250),
-        "contato": _texto(origem.get("contato"), 150),
-        "escolas_atendidas": _lista_textos(origem.get("escolas_atendidas"), 100),
-        "observacao": _texto(origem.get("observacao"), 5000),
-        "responsavel_tecnico": _texto(origem.get("responsavel_tecnico"), 250),
-        "crea": _texto(origem.get("crea"), 150),
-        "executora": _texto(origem.get("executora") or "Topocart", 250),
+        "veiculo_placa": _texto(origem.get("veiculo_placa"), 150), "motorista": _texto(origem.get("motorista"), 250),
+        "contato": _texto(origem.get("contato"), 150), "escolas_atendidas": _lista_textos(origem.get("escolas_atendidas"), 100),
+        "observacao": _texto(origem.get("observacao"), 5000), "responsavel_tecnico": _texto(origem.get("responsavel_tecnico"), 250),
+        "crea": _texto(origem.get("crea"), 150), "executora": _texto(origem.get("executora") or "Topocart", 250),
     }
 
 
 def _salvar_metadados_memorial(codigo_rota: str, dados: dict[str, Any]) -> None:
     if not db.session.execute(SQL_TABELA_MEMORIAIS).scalar_one_or_none():
-        raise ValueError(
-            "A tabela semed.rotas_memoriais ainda não existe. "
-            "Execute 'flask db upgrade' antes de salvar a importação."
-        )
-
-    colunas = {
-        linha["column_name"]: dict(linha)
-        for linha in db.session.execute(SQL_COLUNAS_MEMORIAIS).mappings().all()
-    }
-    obrigatorias = {"codigo_rota", *CAMPOS_MEMORIAL}
-    faltantes = sorted(obrigatorias - set(colunas))
-    if faltantes:
-        raise ValueError(
-            "A tabela semed.rotas_memoriais está desatualizada. "
-            "Execute 'flask db upgrade'. Campos ausentes: " + ", ".join(faltantes)
-        )
-
-    quantidade = db.session.execute(
-        SQL_CONTAR_MEMORIAL,
-        {"codigo_rota": codigo_rota},
-    ).scalar_one()
-    if quantidade > 1:
-        raise ValueError(
-            f"Há {quantidade} registros de memorial para {codigo_rota}. "
-            "Corrija a duplicidade antes de importar."
-        )
-
-    parametros: dict[str, Any] = {"codigo_rota": codigo_rota}
-    expressoes: dict[str, str] = {}
+        raise ValueError("A tabela semed.rotas_memoriais ainda não existe. Execute 'flask db upgrade' antes de salvar a importação.")
+    colunas = {linha["column_name"]: dict(linha) for linha in db.session.execute(SQL_COLUNAS_MEMORIAIS).mappings().all()}
+    obrigatorias = {"codigo_rota", *CAMPOS_MEMORIAL}; faltantes = sorted(obrigatorias - set(colunas))
+    if faltantes: raise ValueError("A tabela semed.rotas_memoriais está desatualizada. Execute 'flask db upgrade'. Campos ausentes: " + ", ".join(faltantes))
+    quantidade = db.session.execute(SQL_CONTAR_MEMORIAL, {"codigo_rota": codigo_rota}).scalar_one()
+    if quantidade > 1: raise ValueError(f"Há {quantidade} registros de memorial para {codigo_rota}. Corrija a duplicidade antes de importar.")
+    parametros: dict[str, Any] = {"codigo_rota": codigo_rota}; expressoes: dict[str, str] = {}
     for campo in CAMPOS_MEMORIAL:
-        valor = dados.get(campo)
-        tipo = str(colunas[campo].get("data_type") or "").lower()
-        udt = str(colunas[campo].get("udt_name") or "").lower()
-
+        valor = dados.get(campo); tipo = str(colunas[campo].get("data_type") or "").lower(); udt = str(colunas[campo].get("udt_name") or "").lower()
         if campo in CAMPOS_JSON_MEMORIAL:
-            serializado = json.dumps(valor, ensure_ascii=False)
-            parametros[campo] = serializado
-            if tipo == "jsonb" or udt == "jsonb":
-                expressoes[campo] = f"CAST(:{campo} AS jsonb)"
-            elif tipo == "json" or udt == "json":
-                expressoes[campo] = f"CAST(:{campo} AS json)"
-            else:
-                expressoes[campo] = f":{campo}"
+            parametros[campo] = json.dumps(valor, ensure_ascii=False)
+            expressoes[campo] = f"CAST(:{campo} AS jsonb)" if tipo == "jsonb" or udt == "jsonb" else f"CAST(:{campo} AS json)" if tipo == "json" or udt == "json" else f":{campo}"
         else:
-            parametros[campo] = valor
-            expressoes[campo] = f":{campo}"
-
+            parametros[campo] = valor; expressoes[campo] = f":{campo}"
     if quantidade == 1:
         atribuicoes = ", ".join(f"{campo} = {expressoes[campo]}" for campo in CAMPOS_MEMORIAL)
-        if "atualizado_em" in colunas:
-            atribuicoes += ", atualizado_em = NOW()"
-        comando = text(
-            "UPDATE semed.rotas_memoriais SET "
-            + atribuicoes
-            + " WHERE LOWER(BTRIM(codigo_rota)) = LOWER(BTRIM(:codigo_rota))"
-        )
+        if "atualizado_em" in colunas: atribuicoes += ", atualizado_em = NOW()"
+        comando = text("UPDATE semed.rotas_memoriais SET " + atribuicoes + " WHERE LOWER(BTRIM(codigo_rota)) = LOWER(BTRIM(:codigo_rota))")
     else:
-        campos = ["codigo_rota", *CAMPOS_MEMORIAL]
-        valores = [":codigo_rota", *[expressoes[campo] for campo in CAMPOS_MEMORIAL]]
-        comando = text(
-            "INSERT INTO semed.rotas_memoriais ("
-            + ", ".join(campos)
-            + ") VALUES ("
-            + ", ".join(valores)
-            + ")"
-        )
-
+        campos = ["codigo_rota", *CAMPOS_MEMORIAL]; valores = [":codigo_rota", *[expressoes[campo] for campo in CAMPOS_MEMORIAL]]
+        comando = text("INSERT INTO semed.rotas_memoriais (" + ", ".join(campos) + ") VALUES (" + ", ".join(valores) + ")")
     db.session.execute(comando, parametros)
 
 
 @rotas_bp.route("/api/rotas")
 def api_rotas():
     sql = text("""
-    SELECT jsonb_build_object(
-        'type', 'FeatureCollection',
-        'features', COALESCE(jsonb_agg(features.feature), '[]'::jsonb)
-    )
+    SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(features.feature),'[]'::jsonb))
     FROM (
-        SELECT jsonb_build_object(
-            'type',       'Feature',
-            'id',         COALESCE(id, 0),
-            'geometry',   geom_4326,
-            'properties', to_jsonb(inputs) - 'geom'
-        ) AS feature
-        FROM (
-            SELECT *,
-                CASE
-                    WHEN ST_SRID(geom) = 4326 THEN
-                        ST_AsGeoJSON(geom)::jsonb
-                    WHEN ST_SRID(geom) = 31984 THEN
-                        ST_AsGeoJSON(ST_Transform(geom, 4326))::jsonb
-                    ELSE
-                        CASE
-                            WHEN ST_X(ST_Centroid(geom)) > 100000 THEN
-                                ST_AsGeoJSON(ST_Transform(ST_SetSRID(geom, 31984), 4326))::jsonb
-                            ELSE
-                                ST_AsGeoJSON(ST_SetSRID(geom, 4326))::jsonb
-                        END
-                END AS geom_4326
-            FROM semed.rotas_geral
-            WHERE geom IS NOT NULL
-        ) inputs
+      SELECT jsonb_build_object('type','Feature','id',COALESCE(id,0),'geometry',geom_4326,'properties',to_jsonb(inputs)-'geom') AS feature
+      FROM (
+        SELECT *, CASE
+          WHEN ST_SRID(geom)=4326 THEN ST_AsGeoJSON(geom)::jsonb
+          WHEN ST_SRID(geom)=31984 THEN ST_AsGeoJSON(ST_Transform(geom,4326))::jsonb
+          ELSE CASE WHEN ST_X(ST_Centroid(geom))>100000 THEN ST_AsGeoJSON(ST_Transform(ST_SetSRID(geom,31984),4326))::jsonb ELSE ST_AsGeoJSON(ST_SetSRID(geom,4326))::jsonb END
+        END AS geom_4326
+        FROM semed.rotas_geral WHERE geom IS NOT NULL
+      ) inputs
     ) features;
     """)
-
     resultado = db.session.execute(sql).scalar()
-    if isinstance(resultado, str):
-        return jsonify(json.loads(resultado))
-    return jsonify(resultado or {"type": "FeatureCollection", "features": []})
+    if isinstance(resultado, str): return jsonify(json.loads(resultado))
+    return jsonify(resultado or {"type":"FeatureCollection","features":[]})
 
 
 @rotas_bp.route("/rotas/importar-memorial")
 @login_required
 def importar_memorial():
-    _somente_admin()
-    return render_template("rotas/importar_memorial.html")
+    _somente_admin(); return render_template("rotas/importar_memorial.html")
 
 
 @rotas_bp.route("/api/rotas/importar-memorial/preview", methods=["POST"])
 @login_required
 def preview_importacao_memorial():
     _somente_admin()
-
     arquivo = request.files.get("memorial")
-    if arquivo is None or not arquivo.filename:
-        return jsonify({"sucesso": False, "erro": "Selecione um arquivo DOCX."}), 400
-
+    if arquivo is None or not arquivo.filename: return jsonify({"sucesso":False,"erro":"Selecione um arquivo DOCX."}),400
     caminho: Path | None = None
     try:
-        limite_bytes = int(current_app.config.get("MEMORIAL_MAX_BYTES", 10 * 1024 * 1024))
-        if request.content_length and request.content_length > limite_bytes + (1024 * 1024):
-            return jsonify({"sucesso": False, "erro": "O memorial excede o limite de 10 MB."}), 413
-
+        limite_bytes = int(current_app.config.get("MEMORIAL_MAX_BYTES",10*1024*1024))
+        if request.content_length and request.content_length > limite_bytes + 1024*1024: return jsonify({"sucesso":False,"erro":"O memorial excede o limite de 10 MB."}),413
         caminho = salvar_upload_temporario(arquivo)
-        if caminho.stat().st_size > limite_bytes:
-            raise ValueError("O memorial excede o limite de 10 MB.")
-
-        osrm_url = current_app.config.get("OSRM_BASE_URL", "https://router.project-osrm.org")
-        timeout = int(current_app.config.get("OSRM_TIMEOUT", 45))
+        if caminho.stat().st_size > limite_bytes: raise ValueError("O memorial excede o limite de 10 MB.")
+        osrm_url = current_app.config.get("OSRM_BASE_URL","https://router.project-osrm.org"); timeout = int(current_app.config.get("OSRM_TIMEOUT",45))
         importado = importar_docx(caminho, osrm_base_url=osrm_url, timeout=timeout)
-        dados = importado.para_dict()
-        dados["metadados"] = _metadados_docx_para_formulario(caminho)
-        dados["registros_existentes"] = _existentes_para_json(importado.nome_rota)
-
-        return jsonify({"sucesso": True, "rota": dados})
-
-    except (ValueError, OSError) as exc:
-        return jsonify({"sucesso": False, "erro": str(exc)}), 422
+        dados = importado.para_dict(); dados["metadados"] = _metadados_docx_para_formulario(caminho); dados["registros_existentes"] = _existentes_para_json(importado.nome_rota)
+        return jsonify({"sucesso":True,"rota":dados})
+    except (ValueError,OSError) as exc:
+        return jsonify({"sucesso":False,"erro":str(exc)}),422
     except Exception:
         current_app.logger.exception("Falha ao importar memorial DOCX")
-        return jsonify({
-            "sucesso": False,
-            "erro": "Não foi possível processar o memorial ou calcular a rota.",
-        }), 500
+        return jsonify({"sucesso":False,"erro":"Não foi possível processar o memorial ou calcular a rota."}),500
     finally:
         if caminho is not None:
-            try:
-                caminho.unlink(missing_ok=True)
-            except OSError:
-                current_app.logger.warning("Não foi possível remover o DOCX temporário: %s", caminho)
+            try: caminho.unlink(missing_ok=True)
+            except OSError: current_app.logger.warning("Não foi possível remover o DOCX temporário: %s",caminho)
 
 
 @rotas_bp.route("/api/rotas/importar-memorial/salvar", methods=["POST"])
 @login_required
 def salvar_importacao_memorial():
-    _somente_admin()
-    dados = request.get_json(silent=True) or {}
-    rota = dados.get("rota") or {}
-
-    numero_linha = _texto(rota.get("numero_linha"), 100)
-    try:
-        nome_rota = nome_rota_banco(numero_linha)
-    except ValueError as exc:
-        return jsonify({"sucesso": False, "erro": str(exc)}), 400
-
-    regiao = normalizar_regiao_banco(_texto(rota.get("regiao"), 100))
-    alertas = rota.get("alertas_geometria") or []
-    if alertas and not bool(dados.get("confirmar_alertas")):
-        return jsonify({
-            "sucesso": False,
-            "erro": "A prévia possui alertas de geometria. Confirme a revisão antes de salvar.",
-        }), 409
-
+    _somente_admin(); dados = request.get_json(silent=True) or {}; rota = dados.get("rota") or {}
+    numero_linha = _texto(rota.get("numero_linha"),100)
+    try: nome_rota = nome_rota_banco(numero_linha)
+    except ValueError as exc: return jsonify({"sucesso":False,"erro":str(exc)}),400
+    regiao = normalizar_regiao_banco(_texto(rota.get("regiao"),100)); alertas = rota.get("alertas_geometria") or []
+    if alertas and not bool(dados.get("confirmar_alertas")): return jsonify({"sucesso":False,"erro":"A prévia possui alertas de geometria. Confirme a revisão antes de salvar."}),409
     trechos = rota.get("trechos") or {}
-    if set(trechos) != {"IDA", "VOLTA"}:
-        return jsonify({
-            "sucesso": False,
-            "erro": "O memorial precisa conter os trechos IDA e VOLTA.",
-        }), 400
-
-    alterados: list[dict] = []
+    if not trechos: return jsonify({"sucesso":False,"erro":"O memorial não possui trechos para importação."}),400
+    alterados: list[dict] = []; preservados: list[dict] = []
     try:
-        metadados = _normalizar_metadados_recebidos(rota)
-        metadados["numero_linha"] = numero_linha
-
-        for nome_trecho in ("IDA", "VOLTA"):
-            trecho = trechos[nome_trecho] or {}
-            pontos = trecho.get("pontos") or []
-            pontos_json = pontos_para_json(pontos)
-            geom_json = validar_geojson_linha(trecho.get("geometria"), pontos=pontos)
-
-            existente = _id_trecho_existente(nome_rota, nome_trecho)
-            parametros = {
-                "nome_rota": nome_rota,
-                "regiao": regiao,
-                "trecho": nome_trecho,
-                "trecho_exibicao": "Ida" if nome_trecho == "IDA" else "Volta",
-                "total_pontos": len(pontos),
-                "pontos_notaveis": pontos_json,
-                "geom_geojson": geom_json,
-            }
-
+        metadados = _normalizar_metadados_recebidos(rota); metadados["numero_linha"] = numero_linha
+        for nome_trecho in ("IDA","VOLTA"):
+            trecho = trechos.get(nome_trecho) or {}; pontos = trecho.get("pontos") or []; geometria = trecho.get("geometria")
+            existente = _id_trecho_existente(nome_rota,nome_trecho)
+            if len(pontos) < 2 or not geometria:
+                preservados.append({"id":existente,"trecho":nome_trecho,"acao":"preservado" if existente is not None else "não criado","motivo":"trecho sem pontos suficientes para formar uma linha"})
+                continue
+            pontos_json = pontos_para_json(pontos); geom_json = validar_geojson_linha(geometria,pontos=pontos)
+            parametros = {"nome_rota":nome_rota,"regiao":regiao,"trecho":nome_trecho,"trecho_exibicao":"Ida" if nome_trecho=="IDA" else "Volta","total_pontos":len(pontos),"pontos_notaveis":pontos_json,"geom_geojson":geom_json}
             if existente is not None:
-                parametros["rota_id"] = existente
-                rota_id = db.session.execute(SQL_ATUALIZAR_TRECHO, parametros).scalar_one()
-                acao = "atualizado"
+                parametros["rota_id"] = existente; rota_id = db.session.execute(SQL_ATUALIZAR_TRECHO,parametros).scalar_one(); acao = "atualizado"
             else:
-                rota_id = db.session.execute(SQL_INSERIR_TRECHO, parametros).scalar_one()
-                acao = "criado"
-
-            validacao = db.session.execute(
-                SQL_VALIDAR_TRECHO,
-                {"rota_id": rota_id},
-            ).mappings().one()
-
-            if validacao["srid"] != 4326 or not validacao["valida"]:
-                raise ValueError(f"A geometria de {nome_trecho} não passou na validação PostGIS.")
-
-            alterados.append({
-                "id": rota_id,
-                "trecho": nome_trecho,
-                "acao": acao,
-                "vertices": validacao["vertices"],
-            })
-
-        _salvar_metadados_memorial(nome_rota, metadados)
-        db.session.commit()
-        return jsonify({
-            "sucesso": True,
-            "mensagem": f"{nome_rota} e os dados do memorial foram salvos com sucesso.",
-            "registros": alterados,
-            "metadados_salvos": True,
-        })
-
-    except (ValueError, TypeError, KeyError) as exc:
-        db.session.rollback()
-        return jsonify({"sucesso": False, "erro": str(exc)}), 422
+                rota_id = db.session.execute(SQL_INSERIR_TRECHO,parametros).scalar_one(); acao = "criado"
+            validacao = db.session.execute(SQL_VALIDAR_TRECHO,{"rota_id":rota_id}).mappings().one()
+            if validacao["srid"] != 4326 or not validacao["valida"]: raise ValueError(f"A geometria de {nome_trecho} não passou na validação PostGIS.")
+            alterados.append({"id":rota_id,"trecho":nome_trecho,"acao":acao,"vertices":validacao["vertices"]})
+        if not alterados:
+            raise ValueError("Nenhum trecho possui pontos suficientes para formar uma linha. Os dados do memorial não foram salvos.")
+        _salvar_metadados_memorial(nome_rota,metadados); db.session.commit()
+        return jsonify({"sucesso":True,"mensagem":f"{nome_rota} e os dados do memorial foram salvos com sucesso.","registros":alterados,"preservados":preservados,"metadados_salvos":True})
+    except (ValueError,TypeError,KeyError) as exc:
+        db.session.rollback(); return jsonify({"sucesso":False,"erro":str(exc)}),422
     except SQLAlchemyError:
-        db.session.rollback()
-        current_app.logger.exception("Falha de banco ao salvar rota importada")
-        return jsonify({
-            "sucesso": False,
-            "erro": "O banco recusou a atualização. Nenhum trecho ou dado do memorial foi salvo.",
-        }), 500
+        db.session.rollback(); current_app.logger.exception("Falha de banco ao salvar rota importada")
+        return jsonify({"sucesso":False,"erro":"O banco recusou a atualização. Nenhum trecho ou dado do memorial foi salvo."}),500
