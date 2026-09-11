@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar memorial — WebSIG SEMED</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17202a; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f5f7fa; }
+        header { background: #fff; border-bottom: 1px solid #dce3ea; padding: 18px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        header h1 { margin: 0; font-size: 1.2rem; }
+        header a { color: #155eef; text-decoration: none; font-weight: 600; }
+        main { max-width: 1220px; margin: 24px auto; padding: 0 20px 40px; }
+        .card { background: #fff; border: 1px solid #dce3ea; border-radius: 14px; padding: 20px; margin-bottom: 18px; box-shadow: 0 4px 16px rgba(16, 24, 40, .04); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .campo { background: #f8fafc; border-radius: 10px; padding: 12px; }
+        .campo small { display: block; color: #667085; margin-bottom: 4px; }
+        .campo strong { word-break: break-word; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+        .form-campo { display: flex; flex-direction: column; gap: 6px; }
+        .form-campo label { font-size: .88rem; font-weight: 700; color: #344054; }
+        .form-campo input, .form-campo select, .form-campo textarea { width: 100%; padding: 10px 11px; border: 1px solid #d0d5dd; border-radius: 9px; background: #fff; font: inherit; }
+        .form-campo textarea { min-height: 84px; resize: vertical; }
+        .span-2 { grid-column: span 2; }
+        .grupo-check { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 0; }
+        .grupo-check label { font-weight: 500; }
+        .acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        button { border: 0; border-radius: 9px; padding: 11px 16px; cursor: pointer; font-weight: 700; font: inherit; }
+        button.primario { background: #155eef; color: #fff; }
+        button.sucesso { background: #067647; color: #fff; }
+        button:disabled { opacity: .55; cursor: not-allowed; }
+        input[type=file] { width: 100%; padding: 12px; border: 1px dashed #98a2b3; border-radius: 10px; background: #f8fafc; }
+        #mapa { height: 520px; border-radius: 12px; border: 1px solid #d0d5dd; }
+        .oculto { display: none !important; }
+        .status { margin-top: 12px; padding: 12px; border-radius: 10px; background: #eef4ff; }
+        .erro { background: #fef3f2; color: #b42318; }
+        .sucesso-msg { background: #ecfdf3; color: #067647; }
+        .avisos { margin: 12px 0 0; padding: 12px 12px 12px 34px; border-radius: 10px; background: #fffaeb; color: #7a2e0e; }
+        .alertas { margin: 12px 0 0; padding: 12px 12px 12px 34px; border-radius: 10px; background: #fef3f2; color: #912018; border: 1px solid #fecdca; }
+        .confirmacao { margin-top: 14px; padding: 12px; border-radius: 10px; border: 1px solid #fecdca; background: #fff7f6; }
+        .confirmacao label { display: flex; gap: 9px; align-items: flex-start; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding: 9px 10px; border-bottom: 1px solid #eaecf0; text-align: left; font-size: .92rem; vertical-align: top; }
+        th { color: #475467; }
+        .rolagem { overflow-x: auto; }
+        .legenda { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; font-size: .92rem; }
+        .ponto-cor { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .ida { background: #155eef; }
+        .volta { background: #d92d20; }
+        .atual { background: #667085; }
+        details.pontos { margin-top: 14px; border: 1px solid #eaecf0; border-radius: 10px; padding: 10px 12px; }
+        details.pontos summary { cursor: pointer; font-weight: 700; }
+        .nota { color: #667085; font-size: .92rem; }
+        .secao-titulo { margin: 24px 0 10px; font-size: 1.05rem; }
+        .horarios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        @media (max-width: 720px) {
+            #mapa { height: 420px; }
+            header { align-items: flex-start; flex-direction: column; }
+            .span-2 { grid-column: span 1; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>Importar rota a partir de memorial</h1>
+        <div style="color:#667085;font-size:.92rem;margin-top:4px">DOCX → conferência e edição → roteamento viário → PostGIS</div>
+    </div>
+    <a href="{{ url_for('home.mapa_semed') }}">← Voltar ao mapa</a>
+</header>
+
+<main>
+    <section class="card">
+        <h2 style="margin-top:0">1. Selecione o memorial</h2>
+        <p>Use um memorial DOCX no padrão da SEMED. Nada é salvo antes da sua confirmação.</p>
+        <form id="form-upload" class="acoes">
+            <input id="memorial" name="memorial" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+            <button id="btn-preview" class="primario" type="submit">Ler memorial e gerar prévia</button>
+        </form>
+        <div id="status" class="status oculto"></div>
+    </section>
+
+    <section id="resumo" class="card oculto">
+        <h2 style="margin-top:0">2. Conferência e edição</h2>
+        <p class="nota">Os campos abaixo são extraídos do memorial e podem ser corrigidos antes do salvamento.</p>
+        <div id="campos-resumo" class="grid"></div>
+
+        <h3 class="secao-titulo">Dados operacionais da rota</h3>
+        <div class="form-grid">
+            <div class="form-campo"><label>Número da linha</label><input id="f-numero-linha"></div>
+            <div class="form-campo span-2"><label>Linha / descrição</label><input id="f-linha"></div>
+            <div class="form-campo"><label>Região</label><input id="f-regiao"></div>
+            <div class="form-campo"><label>Km IDA oficial</label><input id="f-km-ida" type="number" min="0" step="0.001"></div>
+            <div class="form-campo"><label>Km VOLTA oficial</label><input id="f-km-volta" type="number" min="0" step="0.001"></div>
+            <div class="form-campo"><label>Tipo de veículo</label><select id="f-tipo-veiculo"><option value=""></option><option>ÔNIBUS</option><option>MICRO-ÔNIBUS 4X4</option><option>MICRO-ÔNIBUS</option><option>VAN</option></select></div>
+            <div class="form-campo"><label>Quantidade de veículos</label><input id="f-quantidade" type="number" min="1" max="99" step="1"></div>
+            <div class="form-campo"><label>Ônibus PCD</label><select id="f-pcd"><option value="">Não informado</option><option value="true">Sim</option><option value="false">Não</option></select></div>
+            <div class="form-campo span-2"><label>Início</label><input id="f-inicio"></div>
+            <div class="form-campo span-2"><label>Término</label><input id="f-termino"></div>
+            <div class="form-campo"><label>Localização</label><input id="f-localizacao"></div>
+            <div class="form-campo"><label>Intermunicipal</label><select id="f-intermunicipal"><option value="">Não informado</option><option value="true">Sim</option><option value="false">Não</option></select></div>
+        </div>
+
+        <h3 class="secao-titulo">Turnos</h3>
+        <div id="turnos" class="grupo-check"></div>
+        <div id="horarios" class="horarios-grid"></div>
+
+        <h3 class="secao-titulo">Rede e área de atendimento</h3>
+        <div class="form-grid">
+            <div class="form-campo"><label>Redes de ensino</label><div id="redes" class="grupo-check"></div></div>
+            <div class="form-campo"><label>Área</label><div id="areas" class="grupo-check"></div></div>
+        </div>
+
+        <h3 class="secao-titulo">Veículo, motorista e assistência</h3>
+        <div class="form-grid">
+            <div class="form-campo"><label>Nº do veículo / placa</label><input id="f-placa"></div>
+            <div class="form-campo"><label>Motorista</label><input id="f-motorista"></div>
+            <div class="form-campo"><label>Contato</label><input id="f-contato"></div>
+            <div class="form-campo"><label>Assistente de mobilidade</label><select id="f-assistente"><option value="">Não informado</option><option value="true">Sim</option><option value="false">Não</option></select></div>
+            <div class="form-campo"><label>Nome do assistente</label><input id="f-assistente-nome"></div>
+        </div>
+
+        <h3 class="secao-titulo">Escolas e observações</h3>
+        <div class="form-grid">
+            <div class="form-campo span-2"><label>Escolas atendidas — uma por linha</label><textarea id="f-escolas"></textarea></div>
+            <div class="form-campo span-2"><label>Observação</label><textarea id="f-observacao"></textarea></div>
+        </div>
+
+        <h3 class="secao-titulo">Responsável técnico</h3>
+        <div class="form-grid">
+            <div class="form-campo"><label>Responsável técnico</label><input id="f-responsavel"></div>
+            <div class="form-campo"><label>CREA / registro profissional</label><input id="f-crea"></div>
+            <div class="form-campo"><label>Executora</label><input id="f-executora"></div>
+        </div>
+
+        <ul id="avisos" class="avisos oculto"></ul>
+        <div id="alertas-box" class="oculto">
+            <h3>Alertas de geometria</h3>
+            <p class="nota">Estes alertas podem indicar coordenadas incorretas, trechos ambíguos ou diferenças relevantes entre o memorial e o roteamento.</p>
+            <ul id="alertas" class="alertas"></ul>
+        </div>
+        <div id="registros"></div>
+        <div id="pontos"></div>
+    </section>
+
+    <section id="mapa-card" class="card oculto">
+        <h2 style="margin-top:0">3. Prévia no mapa</h2>
+        <div class="legenda">
+            <span><span class="ponto-cor ida"></span>Novo traçado IDA</span>
+            <span><span class="ponto-cor volta"></span>Novo traçado VOLTA</span>
+            <span><span class="ponto-cor atual"></span>Traçado atualmente salvo</span>
+        </div>
+        <div id="mapa"></div>
+    </section>
+
+    <section id="salvar-card" class="card oculto">
+        <h2 style="margin-top:0">4. Salvar no WebSIG</h2>
+        <p>A geometria, os pontos notáveis e os dados editáveis do memorial serão salvos juntos. Se qualquer etapa falhar, nada é confirmado.</p>
+        <div id="confirmacao-alertas" class="confirmacao oculto">
+            <label><input id="check-alertas" type="checkbox"><span>Revisei os alertas de geometria e a prévia no mapa e confirmo que desejo salvar este traçado.</span></label>
+        </div>
+        <div class="acoes" style="margin-top:14px">
+            <button id="btn-salvar" class="sucesso" type="button">Confirmar e salvar rota</button>
+            <a href="{{ url_for('home.mapa_semed') }}" style="color:#155eef;font-weight:600;text-decoration:none">Cancelar e voltar ao mapa</a>
+        </div>
+    </section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const form = document.getElementById('form-upload');
+const arquivo = document.getElementById('memorial');
+const statusBox = document.getElementById('status');
+const btnPreview = document.getElementById('btn-preview');
+const btnSalvar = document.getElementById('btn-salvar');
+const resumo = document.getElementById('resumo');
+const mapaCard = document.getElementById('mapa-card');
+const salvarCard = document.getElementById('salvar-card');
+const confirmacaoAlertas = document.getElementById('confirmacao-alertas');
+const checkAlertas = document.getElementById('check-alertas');
+let rotaAtual = null;
+let mapa = null;
+let grupo = null;
+
+function escaparHtml(v) {
+    return String(v ?? '').replace(/[&<>'\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
+}
+function status(t, tipo='') { statusBox.textContent = t; statusBox.className = `status ${tipo}`.trim(); }
+function formatarKm(v) { return v == null ? '—' : `${Number(v).toFixed(2)} km`; }
+function setValor(id, v) { document.getElementById(id).value = v ?? ''; }
+function boolValor(id, v) { document.getElementById(id).value = v === true ? 'true' : v === false ? 'false' : ''; }
+function lerBool(id) { const v = document.getElementById(id).value; return v === 'true' ? true : v === 'false' ? false : null; }
+function atualizarBotaoSalvar() { const precisa = Boolean(rotaAtual && rotaAtual.requer_confirmacao); btnSalvar.disabled = !rotaAtual || (precisa && !checkAlertas.checked); }
+function montarChecks(containerId, opcoes, selecionados, prefixo) { const box = document.getElementById(containerId); const ativos = new Set((selecionados || []).map(v => String(v).toUpperCase())); box.innerHTML = opcoes.map(op => `<label><input type="checkbox" data-grupo="${prefixo}" value="${escaparHtml(op)}" ${ativos.has(op.toUpperCase()) ? 'checked' : ''}> ${escaparHtml(op)}</label>`).join(''); }
+function valoresChecks(prefixo) { return [...document.querySelectorAll(`input[data-grupo="${prefixo}"]:checked`)].map(el => el.value); }
+function montarHorarios(meta) { const box = document.getElementById('horarios'); box.innerHTML = ['MANHÃ','TARDE','NOITE','INTEGRAL'].map(turno => { const h = meta.horarios?.[turno] || {}; return `<div class="campo"><small>${turno}</small><div class="form-grid"><div class="form-campo"><label>Início das aulas</label><input data-horario="${turno}" data-campo="inicio_aulas" value="${escaparHtml(h.inicio_aulas || '')}"></div><div class="form-campo"><label>Término das aulas</label><input data-horario="${turno}" data-campo="termino_aulas" value="${escaparHtml(h.termino_aulas || '')}"></div></div></div>`; }).join(''); }
+function lerHorarios() { const resultado = {}; for (const turno of ['MANHÃ','TARDE','NOITE','INTEGRAL']) resultado[turno] = {horario:'', inicio_aulas:'', termino_aulas:''}; document.querySelectorAll('[data-horario]').forEach(el => resultado[el.dataset.horario][el.dataset.campo] = el.value.trim()); return resultado; }
+function preencherFormulario(rota) { const m = rota.metadados || {}; setValor('f-numero-linha', rota.numero_linha || m.numero_linha); setValor('f-linha', m.linha || rota.linha); setValor('f-regiao', rota.regiao); setValor('f-km-ida', m.km_ida ?? rota.km_ida_documento); setValor('f-km-volta', m.km_volta ?? rota.km_volta_documento); setValor('f-tipo-veiculo', m.tipo_veiculo); setValor('f-quantidade', m.quantidade_veiculos); boolValor('f-pcd', m.onibus_pcd); setValor('f-inicio', m.inicio); setValor('f-termino', m.termino); setValor('f-localizacao', m.localizacao); boolValor('f-intermunicipal', m.intermunicipal); setValor('f-placa', m.veiculo_placa); setValor('f-motorista', m.motorista); setValor('f-contato', m.contato); boolValor('f-assistente', m.assistente_mobilidade); setValor('f-assistente-nome', m.assistente_nome); setValor('f-escolas', (m.escolas_atendidas || []).join('\n')); setValor('f-observacao', m.observacao); setValor('f-responsavel', m.responsavel_tecnico); setValor('f-crea', m.crea); setValor('f-executora', m.executora || 'Topocart'); montarChecks('turnos', ['MANHÃ','TARDE','NOITE','INTEGRAL'], m.turnos_ativos, 'turnos'); montarChecks('redes', ['MUNICIPAL','ESTADUAL','FEDERAL'], m.redes_ensino, 'redes'); montarChecks('areas', ['URBANA','RURAL'], m.areas, 'areas'); montarHorarios(m); }
+function aplicarFormularioNaRota() { if (!rotaAtual) return; const m = rotaAtual.metadados || (rotaAtual.metadados = {}); rotaAtual.numero_linha = document.getElementById('f-numero-linha').value.trim(); rotaAtual.linha = document.getElementById('f-linha').value.trim(); rotaAtual.regiao = document.getElementById('f-regiao').value.trim(); m.numero_linha = rotaAtual.numero_linha; m.linha = rotaAtual.linha; m.km_ida = document.getElementById('f-km-ida').value || null; m.km_volta = document.getElementById('f-km-volta').value || null; m.tipo_veiculo = document.getElementById('f-tipo-veiculo').value; m.quantidade_veiculos = document.getElementById('f-quantidade').value || null; m.onibus_pcd = lerBool('f-pcd'); m.inicio = document.getElementById('f-inicio').value.trim(); m.termino = document.getElementById('f-termino').value.trim(); m.localizacao = document.getElementById('f-localizacao').value.trim(); m.intermunicipal = lerBool('f-intermunicipal'); m.turnos_ativos = valoresChecks('turnos'); m.horarios = lerHorarios(); m.redes_ensino = valoresChecks('redes'); m.areas = valoresChecks('areas'); m.veiculo_placa = document.getElementById('f-placa').value.trim(); m.motorista = document.getElementById('f-motorista').value.trim(); m.contato = document.getElementById('f-contato').value.trim(); m.assistente_mobilidade = lerBool('f-assistente'); m.assistente_nome = document.getElementById('f-assistente-nome').value.trim(); m.escolas_atendidas = document.getElementById('f-escolas').value.split(/\n+/).map(v => v.trim()).filter(Boolean); m.observacao = document.getElementById('f-observacao').value.trim(); m.responsavel_tecnico = document.getElementById('f-responsavel').value.trim(); m.crea = document.getElementById('f-crea').value.trim(); m.executora = document.getElementById('f-executora').value.trim() || 'Topocart'; }
+function montarPontos(rota) { const destino = document.getElementById('pontos'); destino.innerHTML = ['IDA','VOLTA'].map(nome => { const trecho = rota.trechos[nome]; const linhas = trecho.pontos.map((p, i) => { const distancia = trecho.distancias_entre_pontos_km?.[i]; return `<tr><td>${escaparHtml(p.ordem)}</td><td>${escaparHtml(p.referencia)}</td><td>${escaparHtml(p.coordenadas)}</td><td>${escaparHtml(p.logradouro || '—')}</td><td>${escaparHtml(p.direcao_seguir || '—')}</td><td>${distancia == null ? '—' : escaparHtml(formatarKm(distancia))}</td></tr>`; }).join(''); return `<details class="pontos"><summary>Pontos do trecho ${nome} (${trecho.pontos.length})</summary><div class="rolagem"><table><thead><tr><th>#</th><th>Referência</th><th>Coordenadas</th><th>Logradouro</th><th>Instrução do memorial</th><th>Roteador até o próximo</th></tr></thead><tbody>${linhas}</tbody></table></div></details>`; }).join(''); }
+function montarResumo(rota) { const ida = rota.trechos.IDA, volta = rota.trechos.VOLTA; document.getElementById('campos-resumo').innerHTML = [['Rota', rota.nome_rota], ['Pontos IDA', ida.pontos.length], ['Pontos VOLTA', volta.pontos.length], ['Km calculado IDA', formatarKm(ida.distancia_roteada_km)], ['Km calculado VOLTA', formatarKm(volta.distancia_roteada_km)]].map(([r,v]) => `<div class="campo"><small>${escaparHtml(r)}</small><strong>${escaparHtml(v)}</strong></div>`).join(''); preencherFormulario(rota); const avisos = document.getElementById('avisos'); if (rota.avisos?.length) { avisos.innerHTML = rota.avisos.map(i => `<li>${escaparHtml(i)}</li>`).join(''); avisos.classList.remove('oculto'); } else { avisos.innerHTML = ''; avisos.classList.add('oculto'); } const alertasBox = document.getElementById('alertas-box'), alertas = document.getElementById('alertas'); if (rota.alertas_geometria?.length) { alertas.innerHTML = rota.alertas_geometria.map(i => `<li>${escaparHtml(i)}</li>`).join(''); alertasBox.classList.remove('oculto'); confirmacaoAlertas.classList.remove('oculto'); checkAlertas.checked = false; } else { alertas.innerHTML = ''; alertasBox.classList.add('oculto'); confirmacaoAlertas.classList.add('oculto'); checkAlertas.checked = false; } const registros = document.getElementById('registros'); if (rota.registros_existentes?.length) { registros.innerHTML = `<h3>Registros existentes que serão atualizados</h3><div class="rolagem"><table><thead><tr><th>ID</th><th>Trecho</th><th>Região atual</th><th>Pontos atuais</th><th>Vértices atuais</th><th>Extensão atual</th></tr></thead><tbody>${rota.registros_existentes.map(r => `<tr><td>${escaparHtml(r.id)}</td><td>${escaparHtml(r.trecho)}</td><td>${escaparHtml(r.regiao || '—')}</td><td>${escaparHtml(r.total_pontos ?? '—')}</td><td>${escaparHtml(r.vertices ?? '—')}</td><td>${escaparHtml(formatarKm(r.extensao_km))}</td></tr>`).join('')}</tbody></table></div>`; } else { registros.innerHTML = '<p><strong>Nova rota:</strong> não foram encontrados registros com esse nome; IDA e VOLTA serão criadas.</p>'; } montarPontos(rota); atualizarBotaoSalvar(); }
+function montarMapa(rota) { if (!mapa) { mapa = L.map('mapa'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(mapa); } if (grupo) grupo.remove(); grupo = L.featureGroup().addTo(mapa); for (const atual of (rota.registros_existentes || [])) { if (!atual.geometria) continue; L.geoJSON(atual.geometria, {style:{color:'#667085', weight:4, opacity:.65, dashArray:'8 8'}}).bindPopup(`Traçado atual · ${escaparHtml(atual.trecho)}`).addTo(grupo); } const estilos = {IDA:{color:'#155eef',weight:5,opacity:.88}, VOLTA:{color:'#d92d20',weight:5,opacity:.80}}; for (const nome of ['IDA','VOLTA']) { const trecho = rota.trechos[nome]; L.geoJSON(trecho.geometria, {style:estilos[nome]}).bindPopup(`${nome} · ${escaparHtml(formatarKm(trecho.distancia_roteada_km))}`).addTo(grupo); trecho.pontos.forEach(p => L.circleMarker([p.lat,p.lon], {radius:4,color:estilos[nome].color,fillColor:estilos[nome].color,fillOpacity:.9}).bindPopup(`<strong>${nome} · ${escaparHtml(p.ordem)}</strong><br>${escaparHtml(p.referencia)}<br><small>${escaparHtml(p.coordenadas)}</small>`).addTo(grupo)); } if (grupo.getLayers().length) mapa.fitBounds(grupo.getBounds(), {padding:[24,24]}); setTimeout(() => mapa.invalidateSize(), 50); }
+form.addEventListener('submit', async e => { e.preventDefault(); rotaAtual = null; resumo.classList.add('oculto'); mapaCard.classList.add('oculto'); salvarCard.classList.add('oculto'); atualizarBotaoSalvar(); if (!arquivo.files.length) return; btnPreview.disabled = true; status('Lendo o memorial e calculando IDA/VOLTA pelas vias...'); try { const corpo = new FormData(); corpo.append('memorial', arquivo.files[0]); const resposta = await fetch('{{ url_for("rotas.preview_importacao_memorial") }}', {method:'POST', body:corpo}); const dados = await resposta.json(); if (!resposta.ok || !dados.sucesso) throw new Error(dados.erro || 'Falha ao processar o memorial.'); rotaAtual = dados.rota; montarResumo(rotaAtual); resumo.classList.remove('oculto'); mapaCard.classList.remove('oculto'); salvarCard.classList.remove('oculto'); montarMapa(rotaAtual); status('Prévia gerada. Revise e edite os dados antes de salvar.', 'sucesso-msg'); } catch (err) { status(err.message || 'Erro ao gerar a prévia.', 'erro'); } finally { btnPreview.disabled = false; } });
+checkAlertas.addEventListener('change', atualizarBotaoSalvar);
+btnSalvar.addEventListener('click', async () => { if (!rotaAtual) return; aplicarFormularioNaRota(); if (!confirm(`Confirmar a gravação de ${rotaAtual.numero_linha} no WebSIG?`)) return; btnSalvar.disabled = true; status('Salvando rota e dados do memorial no PostGIS...'); try { const resposta = await fetch('{{ url_for("rotas.salvar_importacao_memorial") }}', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({rota:rotaAtual, confirmar_alertas:!rotaAtual.requer_confirmacao || checkAlertas.checked})}); const dados = await resposta.json(); if (!resposta.ok || !dados.sucesso) throw new Error(dados.erro || 'Falha ao salvar a rota.'); const ids = dados.registros.map(r => `${r.trecho}: ID ${r.id} (${r.vertices} vértices)`).join(' · '); status(`${dados.mensagem} ${ids}`, 'sucesso-msg'); rotaAtual = null; atualizarBotaoSalvar(); } catch (err) { status(err.message || 'Erro ao salvar a rota.', 'erro'); atualizarBotaoSalvar(); } });
+</script>
+</body>
+</html>

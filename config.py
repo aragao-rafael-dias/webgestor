@@ -98,3 +98,16 @@ class Config:
         "FLASK_DEBUG",
         False,
     )
+
+    OSRM_BASE_URL = os.getenv(
+        "OSRM_BASE_URL",
+        "https://router.project-osrm.org",
+    ).strip()
+
+    OSRM_TIMEOUT = int(
+        os.getenv("OSRM_TIMEOUT", "45")
+    )
+
+    MEMORIAL_MAX_BYTES = int(
+        os.getenv("MEMORIAL_MAX_BYTES", str(10 * 1024 * 1024))
+    )
