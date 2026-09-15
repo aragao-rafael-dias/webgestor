@@ -95,6 +95,7 @@
             <div class="form-campo"><label>Região</label><input id="f-regiao"></div>
             <div class="form-campo"><label>Km IDA oficial</label><input id="f-km-ida" type="number" min="0" step="0.001"></div>
             <div class="form-campo"><label>Km VOLTA oficial</label><input id="f-km-volta" type="number" min="0" step="0.001"></div>
+            <div class="form-campo"><label>KM TOTAL arbitrado</label><input id="f-km-total-arbitrado" type="number" min="0" step="0.001" placeholder="Vazio = cálculo automático"></div>
             <div class="form-campo"><label>Tipo de veículo</label><select id="f-tipo-veiculo"><option value=""></option><option>ÔNIBUS</option><option>MICRO-ÔNIBUS 4X4</option><option>MICRO-ÔNIBUS</option><option>VAN</option></select></div>
             <div class="form-campo"><label>Quantidade de veículos</label><input id="f-quantidade" type="number" min="1" max="99" step="1"></div>
             <div class="form-campo"><label>Ônibus PCD</label><select id="f-pcd"><option value="">Não informado</option><option value="true">Sim</option><option value="false">Não</option></select></div>
@@ -232,6 +233,7 @@ function preencherFormulario(rota) {
     setValor('f-regiao', rota.regiao);
     setValor('f-km-ida', m.km_ida ?? rota.km_ida_documento);
     setValor('f-km-volta', m.km_volta ?? rota.km_volta_documento);
+    setValor('f-km-total-arbitrado', m.km_total_arbitrado);
     setValor('f-tipo-veiculo', m.tipo_veiculo);
     setValor('f-quantidade', m.quantidade_veiculos);
     boolValor('f-pcd', m.onibus_pcd);
@@ -264,6 +266,7 @@ function aplicarFormularioNaRota() {
     m.linha = rotaAtual.linha;
     m.km_ida = document.getElementById('f-km-ida').value || null;
     m.km_volta = document.getElementById('f-km-volta').value || null;
+    m.km_total_arbitrado = document.getElementById('f-km-total-arbitrado').value || null;
     m.tipo_veiculo = document.getElementById('f-tipo-veiculo').value;
     m.quantidade_veiculos = document.getElementById('f-quantidade').value || null;
     m.onibus_pcd = lerBool('f-pcd');
