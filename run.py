@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from datetime import timezone
+from decimal import Decimal
 from importlib import import_module
 from importlib.util import find_spec
 from zoneinfo import ZoneInfo
@@ -42,6 +43,7 @@ from routes.cadastro_territorial import cadastro_territorial_bp
 from routes.auth import auth_bp
 from routes.escolas import escolas_bp
 from routes.home import home_bp
+import routes.memorial as memorial_routes
 from routes.memorial import memorial_bp
 from routes.requisicoes import requisicoes_bp
 from routes.rotas import rotas_bp
@@ -56,6 +58,115 @@ from servicos.acessos_modulos import (
     UsuarioContextual,
     obter_acesso_modulo,
 )
+
+
+def aplicar_regra_km_total_por_frota() -> None:
+    """
+    Aplica a regra de negócio do KM TOTAL dos memoriais:
+
+        soma dos totais dos turnos ativos x quantidade de veículos.
+
+    Exemplo:
+        manhã 27,66 + tarde 27,66 = 55,32 km
+        55,32 x 2 veículos = 110,64 km
+
+    Rotas legadas sem quantidade válida continuam usando 1 veículo,
+    evitando zerar a quilometragem apenas por ausência de cadastro.
+    """
+    if getattr(
+        memorial_routes,
+        "_regra_km_total_por_frota_aplicada",
+        False,
+    ):
+        return
+
+    montar_contexto_original = memorial_routes.montar_contexto
+    tabela_quilometragem_original = memorial_routes.tabela_quilometragem
+
+    def montar_contexto_com_frota(
+        registros,
+        dados,
+        pontos_normalizados,
+    ):
+        contexto = montar_contexto_original(
+            registros,
+            dados,
+            pontos_normalizados,
+        )
+
+        total_turnos = (
+            memorial_routes.decimal_seguro(
+                contexto.get("total_geral"),
+                Decimal("0"),
+            )
+            or Decimal("0")
+        )
+        quantidade_cadastrada = memorial_routes.inteiro_seguro(
+            contexto.get("quantidade_veiculos"),
+            0,
+        )
+        quantidade_calculo = (
+            quantidade_cadastrada
+            if quantidade_cadastrada > 0
+            else 1
+        )
+
+        contexto["total_turnos"] = total_turnos
+        contexto["quantidade_veiculos_calculo"] = quantidade_calculo
+        contexto["total_geral"] = (
+            total_turnos
+            * Decimal(quantidade_calculo)
+        )
+
+        return contexto
+
+    def tabela_quilometragem_com_frota(
+        contexto,
+        estilos,
+    ):
+        elementos = tabela_quilometragem_original(
+            contexto,
+            estilos,
+        )
+
+        total_turnos = (
+            memorial_routes.decimal_seguro(
+                contexto.get("total_turnos"),
+                Decimal("0"),
+            )
+            or Decimal("0")
+        )
+        total_geral = (
+            memorial_routes.decimal_seguro(
+                contexto.get("total_geral"),
+                Decimal("0"),
+            )
+            or Decimal("0")
+        )
+        quantidade = memorial_routes.inteiro_seguro(
+            contexto.get("quantidade_veiculos_calculo"),
+            1,
+        )
+
+        if elementos:
+            elementos[-1] = memorial_routes.Paragraph(
+                (
+                    "<b>Total Geral (km):</b> "
+                    f"{memorial_routes.formatar_km(total_geral)} km "
+                    f"({memorial_routes.formatar_km(total_turnos)} km dos turnos "
+                    f"× {quantidade} veículo(s))."
+                ),
+                estilos["normal"],
+            )
+
+        return elementos
+
+    memorial_routes.montar_contexto = montar_contexto_com_frota
+    memorial_routes.tabela_quilometragem = tabela_quilometragem_com_frota
+    memorial_routes._regra_km_total_por_frota_aplicada = True
+
+
+aplicar_regra_km_total_por_frota()
 
 
 app = Flask(__name__)
