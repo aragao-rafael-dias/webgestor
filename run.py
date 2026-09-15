@@ -129,13 +129,6 @@ def aplicar_regra_km_total_por_frota() -> None:
             estilos,
         )
 
-        total_turnos = (
-            memorial_routes.decimal_seguro(
-                contexto.get("total_turnos"),
-                Decimal("0"),
-            )
-            or Decimal("0")
-        )
         total_geral = (
             memorial_routes.decimal_seguro(
                 contexto.get("total_geral"),
@@ -143,18 +136,12 @@ def aplicar_regra_km_total_por_frota() -> None:
             )
             or Decimal("0")
         )
-        quantidade = memorial_routes.inteiro_seguro(
-            contexto.get("quantidade_veiculos_calculo"),
-            1,
-        )
 
         if elementos:
             elementos[-1] = memorial_routes.Paragraph(
                 (
                     "<b>Total Geral (km):</b> "
-                    f"{memorial_routes.formatar_km(total_geral)} km "
-                    f"({memorial_routes.formatar_km(total_turnos)} km dos turnos "
-                    f"× {quantidade} veículo(s))."
+                    f"{memorial_routes.formatar_km(total_geral)} km."
                 ),
                 estilos["normal"],
             )
@@ -682,8 +669,8 @@ def criar_admin():
                     Usuario.email == email
                 )
             )
-            .scalar_one_or_none()
         )
+        .scalar_one_or_none()
 
         if email_existente:
             raise click.ClickException(
