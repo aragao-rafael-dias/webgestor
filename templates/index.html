@@ -62,6 +62,10 @@
                 </a>
 
                 {% if current_user.perfil == 'ADMIN' %}
+                    <a href="{{ url_for('rotas.importar_memorial') }}">
+                        Importar rota por memorial
+                    </a>
+
                     <a href="{{ url_for('admin.listar_usuarios') }}">
                         Administração de usuários
                     </a>
